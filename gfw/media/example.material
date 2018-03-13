@@ -1,0 +1,14 @@
+:material Example
+(:technique
+ (:pass (
+         :shader simple_vs
+         :shader simple_ps
+         :texunit (:texture example.png))))
+
+:material Examples/Robot
+(:technique
+ (:pass (
+         :shader simple_vs
+         :shader simple_ps
+         :texunit (:texture r2skin.jpg))))
+

@@ -1,0 +1,4 @@
+LIBRARY gml
+EXPORTS
+g_tan
+g_real_sin

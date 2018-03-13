@@ -1,0 +1,52 @@
+Configuration Options
+
+There are a several configuration options that control specific aspects of VLD's operation. These configuration options are stored in the vld.ini configuration file. By default, the configuration file should be in the Visual Leak Detector installation directory. However, the configuration file can be copied to the program's working directory, in which case the configuration settings in that copy of vld.ini will apply only when debugging that one program.
+
+VLD
+
+This option acts as a master on/off switch. By default, this option is set to "on". To completely disable Visual Leak Detector at runtime, set this option to "off". When VLD is turned off using this option, it will do nothing but print a message to the debugger indicating that it has been turned off.
+AggregateDuplicates
+
+Normally, VLD displays each individual leaked block in detail. Setting this option to "yes" will make VLD aggregate all leaks that share the same size and call stack under a single entry in the memory leak report. Only the first leaked block will be reported in detail. No other identical leaks will be displayed. Instead, a tally showing the total number of leaks matching that size and call stack will be shown. This can be useful if there are only a few sources of leaks, but those few sources are repeatedly leaking a very large number of memory blocks.
+
+ForceIncludeModules
+
+In some rare cases, it may be necessary to include a module in leak detection, but it may not be possible to include vld.h in any of the module's sources. In such cases, this option can be used to force VLD to include those modules in leak detection. List the names of the modules (DLLs) to be forcefully included in leak detection. If you do use this option, it's advisable to also add vld.lib to the list of library modules in the linker options of your project's settings.
+Caution: Use this option only when absolutely necessary. In some situations, use of this option may result in unpredictable behavior including false leak reports and/or crashes. It's best to stay away from this option unless you are sure you understand what you are doing.
+
+MaxDataDump
+
+Set this option to an integer value to limit the amount of data displayed in memory block data dumps. When this number of bytes of data have been dumped, the dump will stop. This can be useful if any of the leaked blocks are very large and the debugger's output window becomes too cluttered. You can set this option to 0 (zero) if you want to suppress data dumps altogether.
+MaxTraceFrames
+
+By default, VLD will trace the call stack for each allocated block as far back as possible. Each frame traced adds additional overhead (in both CPU time and memory usage) to your debug executable. If you'd like to limit this overhead, you can define this macro to an integer value. The stack trace will stop when it has traced this number of frames. The frame count may include some of the "internal" frames which, by default, are not displayed in the debugger's output window (see TraceInternalFrames below). In some cases there may be about three or four "internal" frames at the beginning of the call stack. Keep this in mind when using this macro, or you may not see the number of frames you expect.
+ReportEncoding
+
+When the memory leak report is saved to a file, the report may optionally be Unicode encoded instead of using the default ASCII encoding. This might be useful if the data contained in leaked blocks is likely to consist of Unicode text. Set this option to "unicode" to generate a Unicode encoded report.
+ReportFile
+
+Use this option to specify the name and location of the file in which to save the memory leak report when using a file as the report destination, as specified by the ReportTo option. If no file is specified here, then VLD will save the report in a file named "memory_leak_report.txt" in the working directory of the program.
+ReportTo
+
+The memory leak report may be sent to a file in addition to, or instead of, the debugger. Use this option to specify which type of destination to use. Specify one of "debugger" (the default), "file", or "both".
+SelfTest
+
+VLD has the ability to check itself for memory leaks. This feature is always active. Every time you run VLD, in addition to checking your own program for memory leaks, it is also checking itself for leaks. Setting this option to "on" forces VLD to intentionally leak a small amount of memory: a 21-character block filled with the text "Memory Leak Self-Test". This provides a way to test VLD's ability to check itself for memory leaks and verify that this capability is working correctly. This option is usually only useful for debugging VLD itself.
+SlowDebuggerDump
+
+If enabled, this option causes Visual Leak Detector to write the memory leak report to the debugger's output window at a slower than normal rate. This option is specifically designed to work around a known issue with some older versions of Visual Studio where some data sent to the output window might be lost if it is sent too quickly. If you notice that some information seems to be missing from the memory leak report, try turning this on.
+StackWalkMethod
+
+Selects the method to be used for walking the stack to obtain call stacks for allocated memory blocks. The default "fast" method may not always be able to successfully trace completely through all call stacks. In such cases, the "safe" method may prove to be more reliable in obtaining the full stack trace. The disadvantage with the "safe" method is that it is significantly slower than the "fast" method and will probably result in very noticeable performance degradation of the program being debugged. In most cases it should be okay to leave this option set to "fast". If you experience problems getting VLD to show call stacks, you can try setting this option to "safe".
+If you do use the "safe" method, and notice a significant performance decrease, you may want to consider using the MaxTraceFrames option to limit the number of frames traced to a relatively small number. This can reduce the amount of time spent tracing the stack by a very large amount.
+StartDisabled
+
+Set this option to "yes" to disable memory leak detection initially. This can be useful if you need to be able to selectively enable memory leak detection from runtime, without needing to rebuild the executable; however, this option should be used with caution. Any memory leaks that may occur before memory leak detection is enabled at runtime will go undetected. For example, if the constructor of some global variable allocates memory before execution reaches a subsequent call to VLDEnable, then VLD will not be able to detect if the memory allocated by the global variable is never freed. Refer to the following section on controlling leak detection at runtime for details on using the runtime APIs which can be useful in conjunction with this option.
+TraceInternalFrames
+
+This option determines whether or not all frames of the call stack, including frames internal to the heap, are traced. There will always be a number of frames on the call stack which are internal to Visual Leak Detector and C/C++ or Win32 heap APIs that aren't generally useful for determining the cause of a leak. Normally these frames are skipped during the stack trace, which somewhat reduces the time spent tracing and amount of data collected and stored in memory. Including all frames in the stack trace, all the way down into VLD's own code can, however, be useful for debugging VLD itself.
+SkipHeapFreeLeaks
+
+Determines whether or not report memory leaks when missing HeapFree calls.
+
+

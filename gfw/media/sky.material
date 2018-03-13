@@ -1,0 +1,8 @@
+:material Examples/CloudyNoonSkyBox (
+    :technique(
+        :pass(
+            :shader sky_box_vs
+            :shader sky_box_ps
+            :texunit(
+                :texture bay.png(
+                    :type cube)))))

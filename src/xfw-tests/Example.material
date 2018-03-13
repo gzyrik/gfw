@@ -1,0 +1,4 @@
+:material Example
+(:technique
+ (:pass (:lighting off
+         :texunit (:image example.png))))

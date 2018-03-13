@@ -1,0 +1,136 @@
+:mesh cube.mesh.xml(
+    :submesh submesh0(
+        :material BaseWhite
+        :primitive triangles
+        :declare(
+            :isize 2
+            :count 36)
+        :indices(
+            :face [0 1 2]
+            :face [2 3 0]
+            :face [4 5 6]
+            :face [6 7 4]
+            :face [8 9 10]
+            :face [10 11 8]
+            :face [12 13 14]
+            :face [14 15 12]
+            :face [16 17 18]
+            :face [18 19 16]
+            :face [20 21 22]
+            :face [22 23 20])
+        :geometry(
+            :count 24
+            :declare(
+                :element(
+                    :semantic position
+                    :type float3
+                    :source 0)
+                :element(
+                    :semantic normal
+                    :type float3
+                    :source 0)
+                :element(
+                    :semantic texcoord
+                    :type float2
+                    :index 0
+                    :source 0))
+            :source 0(
+                :vertex(
+                    :position [-50 -50 50]
+                    :normal [0 -1 0]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [-50 -50 -50]
+                    :normal [0 -1 0]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [50 -50 -50]
+                    :normal [0 -1 0]
+                    :texcoord [0 0])
+                :vertex(
+                    :position [50 -50 50]
+                    :normal [0 -1 0]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [-50 50 50]
+                    :normal [0 1 0]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [50 50 50]
+                    :normal [0 1 0]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [50 50 -50]
+                    :normal [0 1 0]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [-50 50 -50]
+                    :normal [0 1 0]
+                    :texcoord [0 0])
+                :vertex(
+                    :position [-50 -50 50]
+                    :normal [0 0 1]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [50 -50 50]
+                    :normal [0 0 1]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [50 50 50]
+                    :normal [0 0 1]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [-50 50 50]
+                    :normal [0 0 1]
+                    :texcoord [0 0])
+                :vertex(
+                    :position [50 -50 50]
+                    :normal [1 0 0]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [50 -50 -50]
+                    :normal [1 0 0]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [50 50 -50]
+                    :normal [1 0 0]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [50 50 50]
+                    :normal [1 0 0]
+                    :texcoord [0 0])
+                :vertex(
+                    :position [50 -50 -50]
+                    :normal [0 0 -1]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [-50 -50 -50]
+                    :normal [0 0 -1]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [-50 50 -50]
+                    :normal [0 0 -1]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [50 50 -50]
+                    :normal [0 0 -1]
+                    :texcoord [0 0])
+                :vertex(
+                    :position [-50 -50 -50]
+                    :normal [-1 0 0]
+                    :texcoord [0 1])
+                :vertex(
+                    :position [-50 -50 50]
+                    :normal [-1 0 0]
+                    :texcoord [1 1])
+                :vertex(
+                    :position [-50 50 50]
+                    :normal [-1 0 0]
+                    :texcoord [1 0])
+                :vertex(
+                    :position [-50 50 -50]
+                    :normal [-1 0 0]
+                    :texcoord [0 0]))))
+    :bounds(
+        :minimum [-50 -50 -50]
+        :maximum [50 50 50]))

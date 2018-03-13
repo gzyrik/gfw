@@ -1,0 +1,31 @@
+#ifndef __GFW_H__
+#define __GFW_H__
+#include <xos.h>
+#include <xfw.h>
+#include <gml.h>
+
+#define __GFW_H_INSIDE__
+#include "gfw/gmaterial.h"
+#include "gfw/gtechnique.h"
+#include "gfw/gpass.h"
+#include "gfw/gtexunit.h"
+#include "gfw/gtexture.h"
+#include "gfw/grender.h"
+#include "gfw/gscene.h"
+#include "gfw/gtarget.h"
+#include "gfw/grenderqueue.h"
+#include "gfw/gbuffer.h"
+#include "gfw/gshader.h"
+#include "gfw/gmovable.h"
+#include "gfw/gnode.h"
+#include "gfw/gscenenode.h"
+#include "gfw/gcamera.h"
+#include "gfw/gmesh.h"
+#include "gfw/gentity.h"
+#include "gfw/ganimation.h"
+#include "gfw/gbboardset.h"
+#include "gfw/gvecval.h"
+#include "gfw/gquery.h"
+#include "gfw/gpsystem.h"
+#undef __GFW_H_INSIDE__
+#endif /* __GFW_H__ */

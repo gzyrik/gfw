@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="gb2312"?>
+<VisualStudioPropertySheet
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="Release|Win32"
+    OutputDirectory="$(SolutionDir)libs\x86"
+    IntermediateDirectory="$(SolutionDir)obj\vs9\x86\$(ConfigurationName)\$(ProjectName)"
+	>
+	<Tool
+		Name="VCCLCompilerTool"
+		Optimization="0"
+		AdditionalIncludeDirectories="&quot;$(SolutionDir)include\$(RootNamespace)&quot;;&quot;$(SolutionDir)include&quot;;$(NOINHERIT)"
+        PreprocessorDefinitions="_WIN32;NDEBUG;_CRT_SECURE_NO_WARNINGS;NDEBUG"
+		DebugInformationFormat="1"
+	/>
+	<Tool
+		Name="VCLinkerTool"
+		AdditionalLibraryDirectories="$(OutDir)"
+		TargetMachine="1"
+	/>
+</VisualStudioPropertySheet>

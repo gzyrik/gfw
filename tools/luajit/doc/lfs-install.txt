@@ -1,0 +1,5 @@
+#cd luafilesystem
+make LUA_INC=../haikui/lua-5.2.1 LIB_OPTION="-L../haikui -llua --shared"
+
+#cd luafilesystem
+nmake -f Makefile.win LUA_INC=../haikui/lua-5.2.1 LUA_LIB=../haikui/lua-5.2.1.lib

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="gb2312"?>
+<VisualStudioPropertySheet
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="Release|x64"
+    OutputDirectory="$(SolutionDir)libs\x86_64"
+    IntermediateDirectory="$(SolutionDir)obj\vs9\x86_64\$(ConfigurationName)\$(ProjectName)"
+	>
+	<Tool
+		Name="VCCLCompilerTool"
+		Optimization="0"
+		AdditionalIncludeDirectories="&quot;$(SolutionDir)include\$(RootNamespace)&quot;;&quot;$(SolutionDir)include&quot;;$(NOINHERIT)"
+        PreprocessorDefinitions="_WIN64;NDEBUG;_CRT_SECURE_NO_WARNINGS;NDEBUG"
+		DebugInformationFormat="1"
+	/>
+	<Tool
+		Name="VCLinkerTool"
+		AdditionalLibraryDirectories="$(OutDir)"
+		TargetMachine="17"
+	/>
+</VisualStudioPropertySheet>

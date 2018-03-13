@@ -1,0 +1,16 @@
+* 目录结构
+---- <项目名>
+	---- doc	文档
+	---- include	头文件
+	---- projects	工程文件
+	---- src	源文件
+	---- plugins	插件代码
+	---- tests	测试代码
+	---- <项目名>.sln 解决方案文件
+	---- Debug	临时目录
+	---- Release    临时目录
+	---- objs	临时目录
+	---- jni        Android 工程目录
+
+* vcprojct 工程文件必须包含 tools 中的通用 *.vsprops
+  

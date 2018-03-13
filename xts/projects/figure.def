@@ -1,0 +1,4 @@
+LIBRARY figure
+EXPORTS
+figure_type
+figure_get_area
