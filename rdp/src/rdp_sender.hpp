@@ -5,7 +5,7 @@
 namespace rdp {
 
 /** ACK 范围数组 */
-typedef RangeList<uint32_t> AckRangeList;
+typedef RangeList<uint16_t> AckRangeList;
 
 /**
  * ACK反馈者

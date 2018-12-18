@@ -9,20 +9,16 @@ namespace {
  */
 class BWE: public BWEIFace
 {
-    virtual void onReceived_R(const int bitLength, const Time& peerStampMS, const uint32_t messageNumber, const Time& now);
-    virtual int tmmbrKbps_W(const Time& rtt, const Time& now);
+    virtual void onReceived_R(const int bitLength, const Time& peerStampMS, const int recvKbps, const Time& now) override
+    {
+        remoteControl_.UpdatePacket(peerStampMS.millisec(), recvKbps, bitLength, now.millisec());
+    }
+    virtual int tmmbrKbps_W(const Time& rtt, const Time& now) override
+    {
+        return remoteControl_.UpdateBandwidthEstimate(rtt.millisec(), now.millisec(), 1, false);
+    }
     bwe::RemoteRateControl  remoteControl_;
 };
-
-void BWE::onReceived_R(const int bitLength, const Time& peerStampMS, const uint32_t messageNumber, const Time& now)
-{
-    remoteControl_.UpdatePacket(peerStampMS.millisec(), messageNumber, bitLength, now.millisec());
-}
-
-int BWE::tmmbrKbps_W(const Time& rtt, const Time& now)
-{
-    return remoteControl_.UpdateBandwidthEstimate(rtt, now, 1, false);
-}
 }
 
 BWEIFace* BWEIFace::create()

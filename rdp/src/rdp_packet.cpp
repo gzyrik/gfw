@@ -12,10 +12,10 @@ std::string Packet::toString() const
 
     int len = sprintf(buf, "%X%c%x", this->messageNumber, reliable[this->reliability&0x3], this->bitLength);
     if (this->reliability & kSequence) {
-        if ((this->reliability & kReliable) == 0 || this->orderingFlags == 0)
+        if ((this->reliability & kReliable) == 0 || this->controlFlags == 0)
             len += sprintf(buf+len, "(%x/%x)", this->orderingIndex, this->orderingChannel);
         else
-            len += sprintf(buf+len, "(%x/%x|%c)", this->orderingIndex, this->orderingChannel, orderable[this->orderingFlags&0x3]);
+            len += sprintf(buf+len, "(%x/%x|%c)", this->orderingIndex, this->orderingChannel, orderable[this->controlFlags&0x3]);
     }
     if (this->splitPacketCount > 0)
         len += sprintf(buf+len, "[%x/%x|%x]", this->splitPacketIndex, this->splitPacketCount, this->splitPacketId); 
@@ -62,7 +62,7 @@ bool Packet::writeToStream(BitStream& bs) const
     JIF(bs.write(bSplited));
     if (this->reliability & kSequence) {
         if (this->reliability & kReliable)
-            JIF(bs.write(&this->orderingFlags, 2));
+            JIF(bs.write(&this->controlFlags, 2));
         JIF(bs.write(this->orderingChannel));
         JIF(bs.compressWrite(this->orderingIndex,true));
     }
@@ -92,7 +92,7 @@ PacketPtr Packet::readFromStream(BitStream& bs)
     JIF(bs.read(bSplited));
     if (tmp.reliability & kSequence) {
         if (tmp.reliability & kReliable)
-            JIF(bs.read(&tmp.orderingFlags, 2));
+            JIF(bs.read(&tmp.controlFlags, 2));
         JIF(bs.read(tmp.orderingChannel));
         JIF(bs.compressRead(tmp.orderingIndex,true));
     }

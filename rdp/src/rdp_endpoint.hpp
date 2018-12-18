@@ -47,8 +47,8 @@ private:
         bool fixedBw_;
         int  fixedBwKbps_;
         virtual void onReceived_R(const int bitLength, const Time& peerStampMS,
-            const uint32_t messageNumber, const Time& now) override {
-            bwe_->onReceived_R(bitLength, peerStampMS, messageNumber, now);
+            const int recvKbps, const Time& now) override {
+            bwe_->onReceived_R(bitLength, peerStampMS, recvKbps, now);
         }
         virtual int tmmbrKbps_W(const Time& rtt, const Time& now) override {
             return fixedBw_ ? fixedBwKbps_ : bwe_->tmmbrKbps_W(rtt, now);

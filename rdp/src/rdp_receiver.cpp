@@ -43,7 +43,7 @@ class Receiver : public ReceiverIFace
     RWQueue<uint32_t>   ackQueue_;//接收ACK,由线程R->W->ackRanges
     AckRangeList        ackRanges_;//组装ACK
     RWQueue<PacketPtr>  receivedQueue_;//接收包,由线程R->W
-    SharedPtr<BitrateIFace> bitrate_;//接收码率
+    SharedPtr<BitrateIFace> bitrate_R_;//接收码率
     BWEIFace&           bwe_;//下行码率估计,产生TMMBR
 
     uint8_t             rttSampleIndex_;
@@ -57,6 +57,7 @@ class Receiver : public ReceiverIFace
     // ACK -> [uint16_t]size + [uint32_t, uint32_t]range+[Time]RTT_LocalTime
     virtual void onReceived_R(BitStream& bs, const Time& nowNS)
     {
+        bitrate_R_->update(bs.bitWrite,nowNS);
         {//读取ACK+RTT
             uint32_t hostTimeMS, peerTimeMS;
             uint32_t tmmrKbps;
@@ -65,7 +66,7 @@ class Receiver : public ReceiverIFace
             AckRangeList acks;
             for (int i=0; i< ackSizes; ++i) {
                 bool maxEqualToMin;
-                uint32_t minMessageNumber, maxMessageNumber;
+                uint16_t minMessageNumber, maxMessageNumber;
                 JIF(bs.read(maxEqualToMin));
                 JIF(bs.read(minMessageNumber));
                 if (!maxEqualToMin)
@@ -80,8 +81,7 @@ class Receiver : public ReceiverIFace
             updateRttSample(Time::MS(hostTimeMS - nowNS.millisec()));
             peerTime_ = Time::MS(peerTimeMS);
             tmmrKbps_ = tmmrKbps;
-            bitrate_->update(bs.bitWrite,nowNS);
-            bwe_.onReceived_R(bs.bitWrite, peerTime_, bitrate_->kbps(nowNS), nowNS);
+            bwe_.onReceived_R(bs.bitWrite, peerTime_, bitrate_R_->kbps(nowNS), nowNS);
             ackFeedback_.onAcks_R(acks, rttSum_>>8);
         }
         Packet *packet;
@@ -270,7 +270,7 @@ private:
         uint32_t& readIndex = waitingForOrderedPacketReadIndex_[orderingChannel];
         if (packet->orderingIndex < readIndex) {//晚到包
             statistics_.orderedOutOfOrder++;
-            if (packet->orderingFlags & Packet::kDelayable)
+            if (packet->controlFlags & Packet::kDelayable)
                 outputer_.onOrderPackets_W(&packet, 1, false);
             return;
         }
@@ -290,7 +290,7 @@ pop:
         else {
             statistics_.orderedOutOfOrder++;
             PacketList::iterator iter = std::lower_bound(orderingQueue.begin(), orderingQueue.end(), packet);
-            if (packet->orderingFlags & Packet::kResetable) { //强制弹出packet->orderingIndex之前
+            if (packet->controlFlags & Packet::kResetable) { //强制弹出packet->orderingIndex之前
                 outputer_.onOrderPackets_W(&(*iter), orderingQueue.end() - iter, false);
                 orderingQueue.erase(iter,orderingQueue.end());
                 goto pop;
@@ -321,7 +321,7 @@ public:
              BWEIFace& bwe) :
         ackFeedback_(ackFeedback),
         outputer_(outputer),
-        bitrate_(BitrateIFace::create()),
+        bitrate_R_(BitrateIFace::create()),
         bwe_(bwe),
         tmmrKbps_(kMaxBandwidthKbps),
         receivedPacketsBaseIndex_(0)

@@ -18,11 +18,11 @@ struct BWEIFace
      * 根据实际收到数据,更新估计值
      *
      * @param[in] bitLength 收到数据长度
-     * @param[in] peerStampMS 该数据的时间截
-     * @param[in] messageNumber 该数据的序号
+     * @param[in] peerStamp 该数据的时间截
+     * @param[in] recvKbps 当前接收码率
      * @param[in] now 当前时刻
      */
-    virtual void onReceived_R(const int bitLength, const Time& peerStampMS, const uint32_t messageNumber, const Time& now) = 0;
+    virtual void onReceived_R(const int bitLength, const Time& peerStamp, const int recvKbps, const Time& now) = 0;
 
     /**
      * 根据RTT和内部的估计趋势,估计下行带宽

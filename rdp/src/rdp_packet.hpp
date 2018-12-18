@@ -21,7 +21,7 @@ struct Packet
      * 针对kOrderable的特殊标记,
      * 可进行精细的控制.
      */
-    enum OrderingFlag
+    enum ControlFlag
     {
         // 类似于视频关键帧,刷新缓存,强制复位次序.
         // 发送端将不重发该次序前的包.
@@ -32,7 +32,7 @@ struct Packet
 
     uint16_t messageNumber;
     uint8_t reliability;
-    uint8_t orderingFlags;
+    uint8_t controlFlags;
     uint8_t orderingChannel;
     uint32_t orderingIndex;
     uint16_t splitPacketId;

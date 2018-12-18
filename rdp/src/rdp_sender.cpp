@@ -130,7 +130,7 @@ push:
         if (packet->reliability & Packet::kSequence) {
             if (packet->reliability & Packet::kReliable){
                 packet->orderingIndex = waitingForOrderedPacketWriteIndex_[packet->orderingChannel] ++;
-                if (packet->orderingFlags & Packet::kResetable)
+                if (packet->controlFlags & Packet::kResetable)
                     resetingForOrderedPacketWriteIndex_[packet->orderingChannel] = packet->orderingIndex;
             }
             else
@@ -159,7 +159,7 @@ push:
         if (packet->reliability & Packet::kSequence) {
             if (packet->reliability & Packet::kReliable){
                 packet->orderingIndex = waitingForOrderedPacketWriteIndex_[packet->orderingChannel] ++;
-                if (packet->orderingFlags & (Packet::kResetable))
+                if (packet->controlFlags & (Packet::kResetable))
                     resetingForOrderedPacketWriteIndex_[packet->orderingChannel] = packet->orderingIndex;
             }
             else
