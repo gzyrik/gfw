@@ -163,11 +163,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\rdp_channel.cpp"
+				RelativePath="..\..\src\rdp_endpoint.cpp"
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\rdp_channel.tests.cpp"
+				RelativePath="..\..\src\rdp_endpoint.tests.cpp"
 				>
 			</File>
 			<File

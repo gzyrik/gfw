@@ -29,7 +29,7 @@ class Receiver : public ReceiverIFace
     };
     typedef std::map<int, SplitPacketFrame> SplitPacketFrameMap;
 
-    uint32_t receivedPacketsBaseIndex_;
+    uint16_t receivedPacketsBaseIndex_;
     uint32_t waitingForSequencedPacketReadIndex_[0x100];
     uint32_t waitingForOrderedPacketReadIndex_[0x100];
 
@@ -87,7 +87,16 @@ class Receiver : public ReceiverIFace
         Packet *packet;
         while (Packet::maybePacket(bs) && (packet = Packet::readFromStream(bs)))
         {
-            const size_t holeCount = packet->messageNumber - receivedPacketsBaseIndex_;
+            int holeCount = 0;
+            if (packet->messageNumber >= 0x7fff && !receivedPacketsBaseIndex_
+                && hasReceivedPackets_.empty()) {
+                receivedPacketsBaseIndex_ = packet->messageNumber;
+            }
+            else {
+                holeCount = packet->messageNumber - receivedPacketsBaseIndex_;
+                if (holeCount < 0) holeCount += 0xffff;
+            }
+
             if (packet->reliability & Packet::kReliable)
                 ackQueue_.push(packet->messageNumber);
 
@@ -96,12 +105,12 @@ class Receiver : public ReceiverIFace
                     hasReceivedPackets_.pop_front();
                 receivedPacketsBaseIndex_++;
             }
-            else if (holeCount > (size_t)-1/2){//防止上缢出
+            else if (holeCount > 0x7fff){//防止上缢出
                 statistics_.duplicateReceivedPackets++;
                 delete packet;
                 continue;
             }
-            else if (holeCount < hasReceivedPackets_.size()) {//晚到的包
+            else if (holeCount < (int)hasReceivedPackets_.size()) {//晚到的包
                 if (hasReceivedPackets_[holeCount])
 					hasReceivedPackets_[holeCount] = Time::MS(0);
                 else {
@@ -111,7 +120,7 @@ class Receiver : public ReceiverIFace
                 }
             }
             else {//提前到的包,设置中间未到包的等待过期时间
-                while (holeCount > hasReceivedPackets_.size())
+                while (holeCount > (int)hasReceivedPackets_.size())
 					hasReceivedPackets_.push_back(nowNS + Time::MS(60));
                 hasReceivedPackets_.push_back(Time::MS(0));
             }
@@ -127,7 +136,7 @@ clean:
         return;
     }
     //写入所有Ack,并清除ackRanges
-    virtual bool writeAcks_W(BitStream& bs, const Time& nowNS)
+    virtual bool writeAcks_W(BitStream& bs, const Time& nowNS) override
     {
         const int bitsWrite = bs.bitWrite;
         JIF(bs.write((uint16_t)ackRanges_.size()));
@@ -153,7 +162,7 @@ clean:
         return false;
     }
 
-    virtual void update_W(const Time& nowNS)
+    virtual void update_W(const Time& nowNS) override
     {
         handleAcks(nowNS);
         handlePackets(nowNS);
@@ -210,7 +219,7 @@ private:
                 }
             } 
             else {
-                if (packet->splitPacketCount > 0)//是个splik包
+                if (packet->splitPacketCount > 0)//是个split包
                     packet = handleSplitPacket(packet, nowNS);
                 if (packet)
                     outputer_.onPacket_W(packet, false);
@@ -240,14 +249,14 @@ private:
     {
         const int splitPacketId = packet->splitPacketId;
         SplitPacketFrame& frame = splitPacketFrames_[splitPacketId];
-        if (!frame.splitPacketCount)
+        if (frame.splitPackets.size() < packet->splitPacketCount)
             frame.splitPackets.resize(packet->splitPacketCount);
         frame.splitPackets[packet->splitPacketIndex] = packet;
         frame.lastUpdateTime = nowNS;
-        frame.bitLength    += packet->bitLength;
+        frame.bitLength += packet->bitLength;
         frame.splitPacketCount++;
         if(frame.splitPacketCount < packet->splitPacketCount)
-            return 0;
+            return nullptr;
         packet = Packet::merge(&frame.splitPackets.front(), frame.splitPackets.size());
         frame.splitPackets.clear();
         splitPacketFrames_.erase(splitPacketId);
@@ -317,6 +326,7 @@ public:
         tmmrKbps_(kMaxBandwidthKbps),
         receivedPacketsBaseIndex_(0)
     {
+        memset(&statistics_, 0, sizeof(statistics_));
     }
 };
 }//namespace

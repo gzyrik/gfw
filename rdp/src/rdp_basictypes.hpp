@@ -20,5 +20,6 @@ typedef struct Packet* PacketPtr;
 template<typename T> class WeakPtr;
 template<typename T> class SharedPtr;
 }
-
+#define nullptr 0
+#define final
 #endif

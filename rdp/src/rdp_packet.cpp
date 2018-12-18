@@ -25,17 +25,18 @@ std::string Packet::toString() const
 //估计报文头大小,实际可能会小些
 int Packet::headerBitSize(bool splitting) const
 {
-    int headerLength = 32;//messageNumber
+    int headerLength = 16;//messageNumber
     headerLength += 2; //reliability
-    headerLength++;//whelther splitPacketCount > 0
+    headerLength++;//(splitPacketCount || splitPacketIndex)
     if (this->reliability & kSequence) {
         if (this->reliability & kReliable)
             headerLength += 2;//orderingFlags
         headerLength += 8;//orderingChannel
         headerLength += 32;//compressed orderingIndex
     }
-    if(this->splitPacketCount > 0 || splitting){
-        headerLength +=16;//splitPacketId
+    if (splitting || this->splitPacketCount || this->splitPacketIndex){
+        headerLength++;//whether splitPacketCount > 0
+        headerLength +=16;//compressed splitPacketId
         headerLength +=16;//compressed splitPacketIndex
         headerLength +=16;//compressed splitPacketCount
     }
@@ -46,9 +47,8 @@ int Packet::headerBitSize(bool splitting) const
 bool Packet::maybePacket(const BitStream& bs)
 {
     const int len = bs.bitSize - bs.bitRead;
-    if (len < 32+2+1+16)//messageNumber+reliability+ splitPacketCount > 0 + compressed bitLength
-        return false;
-    return true;
+    //messageNumber+reliability+splitPacketCount>0+compressed bitLength
+    return len > 16+2+1+16;
 }
 
 bool Packet::writeToStream(BitStream& bs) const
@@ -56,19 +56,22 @@ bool Packet::writeToStream(BitStream& bs) const
     if (bs.bitWrite + bitSize() >= bs.bitSize)
         return false;
     const int bitsWrite = bs.bitWrite;//记录原写位置,用于恢复
+    const bool bSplited = (this->splitPacketCount || this->splitPacketIndex);
     JIF(bs.write(this->messageNumber));
     JIF(bs.write(&this->reliability, 2));
-    JIF(bs.write(this->splitPacketCount > 0));
+    JIF(bs.write(bSplited));
     if (this->reliability & kSequence) {
         if (this->reliability & kReliable)
             JIF(bs.write(&this->orderingFlags, 2));
         JIF(bs.write(this->orderingChannel));
         JIF(bs.compressWrite(this->orderingIndex,true));
     }
-    if (this->splitPacketCount > 0) {
-        JIF(bs.write(this->splitPacketId));
+    if (bSplited) {
+        JIF(bs.write(this->splitPacketCount > 0));
+        JIF(bs.compressWrite(this->splitPacketId, true));
         JIF(bs.compressWrite(this->splitPacketIndex, true));
-        JIF(bs.compressWrite(this->splitPacketCount, true));
+        if (this->splitPacketCount > 0)
+            JIF(bs.compressWrite(this->splitPacketCount, true));
     }
     JIF(bs.compressWrite(this->bitLength,true));
     JIF(bs.alignedWrite(this->payload, this->bitLength));
@@ -79,26 +82,27 @@ clean:
 }
 PacketPtr Packet::readFromStream(BitStream& bs)
 {
-    uint8_t buf[15000];
+    uint8_t buf[kMaxMtuBytes];
     Packet tmp;
-    bool split;
+    bool bSplited;
     memset(&tmp, 0, sizeof(Packet));
     const int bitRead = bs.bitRead;//记录原写位置,用于恢复
     JIF(bs.read(tmp.messageNumber));
-    if (!tmp.messageNumber)//从1开始,0为非法值
-        return 0;
     JIF(bs.read(&tmp.reliability, 2));
-    JIF(bs.read(split));
+    JIF(bs.read(bSplited));
     if (tmp.reliability & kSequence) {
         if (tmp.reliability & kReliable)
             JIF(bs.read(&tmp.orderingFlags, 2));
         JIF(bs.read(tmp.orderingChannel));
         JIF(bs.compressRead(tmp.orderingIndex,true));
     }
-    if (split) {
-        JIF(bs.read(tmp.splitPacketId));
+    if (bSplited) {
+        bool splitPacketCount;
+        JIF(bs.read(splitPacketCount));
+        JIF(bs.compressRead(tmp.splitPacketId, true));
         JIF(bs.compressRead(tmp.splitPacketIndex, true));
-        JIF(bs.compressRead(tmp.splitPacketCount, true));
+        if (splitPacketCount)
+            JIF(bs.compressRead(tmp.splitPacketCount, true));
     }
     JIF(bs.compressRead(tmp.bitLength,true));
     JIF(bs.alignedRead(buf, tmp.bitLength));

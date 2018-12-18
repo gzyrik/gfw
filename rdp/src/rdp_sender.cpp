@@ -27,7 +27,7 @@ private:
     SharedPtr<BitrateIFace> bitrate_I_;
     Time                betweenResendTime_;//重发间隔
 
-    uint32_t messageNumber_;
+    uint16_t messageNumber_;
     uint32_t waitingForOrderedPacketWriteIndex_[0x100];
     uint32_t waitingForSequencedPacketWriteIndex_[0x100];
     uint32_t resetingForOrderedPacketWriteIndex_[0x100];
@@ -78,7 +78,7 @@ private:
                     if (!packet->writeToStream(bs))
                         return;
                     resendQueue_.pop_front();
-                    statistics_.resent++;
+                    statistics_.resentPackets++;
                     statistics_.bitResent += packet->bitLength;
                     packet->timeStamp = nowNS + betweenResendTime_;
                     resendQueue_.push_back(packet);
@@ -102,7 +102,7 @@ private:
                 }
                 queue.readUnlock();
                 messageNumber_++;
-                statistics_.sent[i]++;
+                statistics_.sentPackets[i]++;
                 statistics_.bitSent[i] += packet->bitLength;
 
                 if (packet->reliability & Packet::kReliable) {
@@ -168,29 +168,29 @@ push:
         packet->splitPacketId = splitPacketId_++;
     }
     //AckFeedbackIFace
-    virtual void onAcks_R(AckRangeList& ackRanges, const Time& rttAverage)
+    virtual void onAcks_R(AckRangeList& ackRanges, const Time& rttAverage) override
     {
-        {
-            if (ackRanges.size()) {
-                AckRangeList *pAcks = ackRangeQueue_.writeLock();
-                pAcks->swap(ackRanges);
-                ackRangeQueue_.writeUnlock();
-            }
-            if (rttAverage > Time::MS(2500))
-                betweenResendTime_ = Time::MS(2500);
-            else if (rttAverage < Time::MS(500))
-                betweenResendTime_ = Time::MS(500);
-            else
-                betweenResendTime_ = rttAverage;
+        if (ackRanges.size()) {
+            AckRangeList *pAcks = ackRangeQueue_.writeLock();
+            pAcks->swap(ackRanges);
+            ackRangeQueue_.writeUnlock();
         }
+        if (rttAverage > Time::MS(2500))
+            betweenResendTime_ = Time::MS(2500);
+        else if (rttAverage < Time::MS(500))
+            betweenResendTime_ = Time::MS(500);
+        else
+            betweenResendTime_ = rttAverage;
     }
 public:
     Sender(const int bitMTU):
         bitrate_I_(BitrateIFace::create()),
         bitMTU_(bitMTU),
-        messageNumber_(1),//从1开始,0为非法
+        messageNumber_(0x7fff+(rand()%0x8000)),//至少从0x7fff开始
         betweenResendTime_(Time::S(1))
-    {}
+    {
+        memset(&statistics_, 0, sizeof(statistics_));
+    }
 };
 }//namespace
 

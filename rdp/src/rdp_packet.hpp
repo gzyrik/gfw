@@ -30,7 +30,7 @@ struct Packet
         kDelayable      = 2,
     };
 
-    uint32_t messageNumber;
+    uint16_t messageNumber;
     uint8_t reliability;
     uint8_t orderingFlags;
     uint8_t orderingChannel;

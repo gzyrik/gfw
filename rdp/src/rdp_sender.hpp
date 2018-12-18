@@ -45,11 +45,11 @@ struct SenderIFace : public AckFeedbackIFace
         int splitPackets;
         int unsplitPackets;
 
-        int resent;
+        int resentPackets;
         int bitResent;
 
         ///包的发送个数
-        int sent[kNumberOfPriority];
+        int sentPackets[kNumberOfPriority];
 
         ///payload的发送位数
         int bitSent[kNumberOfPriority];
