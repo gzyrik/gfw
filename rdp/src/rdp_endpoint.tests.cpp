@@ -42,7 +42,7 @@ TEST(EndPoint, FixedBandWidth)
     Time now;
     char buf[15000];
     const int fixKbps = 400;
-    P2.fixBandwidth(true, fixKbps);
+    P2.fixBandwidth(0, fixKbps);
     for(int i=0;i<100;++i) {
         now = Time::now();
         P1.sendPacket(Packet::Reliable(buf, fixKbps*1000/100), now);
@@ -50,6 +50,7 @@ TEST(EndPoint, FixedBandWidth)
     }
     SenderIFace::Statistics sendStats;
     rdp::ReceiverIFace::Statistics recvStats;
+    Time::sleep(Time::MS(100));
     P1.join();
     P2.join();
     P1.sendStats(sendStats);

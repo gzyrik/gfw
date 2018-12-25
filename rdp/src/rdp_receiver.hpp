@@ -26,7 +26,6 @@ struct ReceiverIFace
 {
      struct Statistics
     {
-
         int orderedInOrder;
         int orderedOutOfOrder;
         int sequencedInOrder;
@@ -37,6 +36,9 @@ struct ReceiverIFace
 
         int receivedPackets;
         int duplicateReceivedPackets;
+
+        //发送带宽
+        int bwKbps;
     };
     static ReceiverIFace* create(AckFeedbackIFace& ackFeedback,
                                  OutputerIFace& outputer,
@@ -49,9 +51,6 @@ struct ReceiverIFace
     virtual void update_W(const Time& nowNS) = 0;
     //写入所有Ack,并清除ackRanges
     virtual bool writeAcks_W(BitStream& bs, const Time& nowNS) = 0;
-
-    //返回发送带宽bps
-    virtual int tmmbrKbps_W(void) const = 0;
 };
 
 }

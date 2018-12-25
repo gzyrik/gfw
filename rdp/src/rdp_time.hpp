@@ -59,6 +59,8 @@ public:
     {
         return Time(sec, kSecond);
     }
+    /** 常量时间 */
+    static const Time zero;
 public:
     /** 返回纳秒单位的值*/
     int64_t nanosec() const

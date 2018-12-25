@@ -20,6 +20,9 @@ typedef struct Packet* PacketPtr;
 template<typename T> class WeakPtr;
 template<typename T> class SharedPtr;
 }
+#if __cplusplus < 201103L
 #define nullptr 0
 #define final
+#define noexcept throw
+#endif
 #endif

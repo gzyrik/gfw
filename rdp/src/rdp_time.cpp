@@ -46,6 +46,7 @@ inline static uint64_t machNS()
 }
 #endif
 namespace rdp {
+const Time Time::zero = Time::MS(0);
 /** 返回当前时间 */
 Time Time::now(void)
 {

@@ -37,63 +37,21 @@ private:
     friend class Thread;
     enum State state_;
 };
-struct Lockable
-{
-    virtual void lock() const = 0;
-    virtual void unlock() const = 0;
-};
-///可递归互斥量
-struct Mutex : public Lockable
-{
-    Mutex():impl_(0){}
-    ~Mutex();
-    virtual void lock() const;
-    virtual void unlock() const;
-private:
-    friend struct RWMutex;
-    mutable void* impl_;
-};
 
+#if __cplusplus < 201402L
 ///读写互斥量
-struct RWMutex
+struct RWMutex final
 {
-#pragma warning(disable:4355) 
-    RWMutex():write_(*this),read_(*this), impl_(0){}
-#pragma warning(default:4355) 
+    RWMutex(): impl_(0){}
     ~RWMutex();
-    const Lockable& writeMutex() const { return write_; }
-    const Lockable& readMutex() const { return read_; }
-    void writeLock() const;
-    void writeUnlock() const;
-    void readLock() const;
-    void readUnlock() const;
+    void lock() const;
+    void unlock() const;
+    void lock_shared() const;
+    void unlock_shared() const;
 private:
-    struct WriteMutex: public Lockable
-    {
-        RWMutex& rw_;
-        WriteMutex(RWMutex& rw):rw_(rw){}
-        virtual void lock() const { rw_.writeLock(); }
-        virtual void unlock() const { rw_.writeUnlock(); }
-    };
-    struct ReadMutex: public Lockable
-    {
-        RWMutex& rw_;
-        ReadMutex(RWMutex& rw):rw_(rw){}
-        virtual void lock() const { rw_.readLock(); }
-        virtual void unlock() const { rw_.readUnlock(); }
-    };
-    const WriteMutex write_;
-    const ReadMutex read_;
     mutable void* impl_;
 };
-
-///局部的锁
-struct Guard
-{
-    const Lockable& lock_;
-    Guard(const Lockable& lock):lock_(lock) { lock_.lock(); }
-    ~Guard() { lock_.unlock(); }
-};
+#endif
 
 /** 线程类.
  * 该对象销毁时,并不能强制停止线程,因此
@@ -136,5 +94,52 @@ public:
 private:
     void* handle_;
 };
+#if __cplusplus < 201103L
+///可递归互斥量
+struct Mutex final
+{
+    Mutex():impl_(0){}
+    ~Mutex();
+    void lock() const;
+    void unlock() const;
+private:
+    mutable void* impl_;
+};
+///局部的锁
+struct Guard final
+{
+    const Mutex& lock_;
+    Guard(const Mutex& lock):lock_(lock) { lock_.lock(); }
+    ~Guard() { lock_.unlock(); }
+};
+template<typename T>
+struct Atomic
+{
+    T operator++() {
+#ifdef _WIN32
+        return (T)InterlockedIncrement(&val);
+#endif
+    }
+    T operator++ (int) {
+#ifdef _WIN32
+        return (T)InterlockedIncrement(&val)-1;
+#endif
+    }
+    operator T() const {
+        return (T)val;
+    }
+private:
+#ifdef _WIN32
+    long volatile val;
+#endif
+};
+#else //C++11
+template<typename T>
+using Atomic = std::atomic<T>; 
+template<typename T>
+using Guard = std::lock_guard<T>;
+typedef std::recursive_mutex Mutex;
+typedef std::shared_mutex RWMutex;//c++17
+#endif
 }
 #endif

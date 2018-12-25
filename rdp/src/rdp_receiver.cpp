@@ -30,8 +30,8 @@ class Receiver : public ReceiverIFace
     typedef std::map<int, SplitPacketFrame> SplitPacketFrameMap;
 
     uint16_t receivedPacketsBaseIndex_;
-    uint32_t waitingForSequencedPacketReadIndex_[0x100];
-    uint32_t waitingForOrderedPacketReadIndex_[0x100];
+    uint16_t waitingForSequencedPacketReadIndex_[0x100];
+    uint16_t waitingForOrderedPacketReadIndex_[0x100];
 
     PacketList          orderingQueues_[0x100];
     SplitPacketFrameMap splitPacketFrames_;
@@ -50,21 +50,21 @@ class Receiver : public ReceiverIFace
     Time                rttSamples_[0x100];//由ACK带回的RTT
     Time                rttSum_;
     Time                peerTime_;//收到对端时间
-    int                 tmmrKbps_;
+
 
     //ReceiverIFace
-    // 数据流格式是:[ACK + RTT_LocalTime + TMMBR] + [RTT peerTime] + [PACKET]*
-    // ACK -> [uint16_t]size + [uint32_t, uint32_t]range+[Time]RTT_LocalTime
+    // 数据流格式是: ACK + LocalTime + PeerTime + TMMBR + [PACKET]*
+    // ACK -> [uint8_t]size + [uint16_t, uint16_t]range*
     virtual void onReceived_R(BitStream& bs, const Time& nowNS)
     {
         bitrate_R_->update(bs.bitWrite,nowNS);
-        {//读取ACK+RTT
+        {//读取ACK, RTT, TMMR
             uint32_t hostTimeMS, peerTimeMS;
             uint32_t tmmrKbps;
-            uint16_t ackSizes=0;
+            uint8_t ackSizes;
             JIF(bs.read(ackSizes));
             AckRangeList acks;
-            for (int i=0; i< ackSizes; ++i) {
+            for (uint8_t i=0; i< ackSizes; ++i) {
                 bool maxEqualToMin;
                 uint16_t minMessageNumber, maxMessageNumber;
                 JIF(bs.read(maxEqualToMin));
@@ -80,7 +80,7 @@ class Receiver : public ReceiverIFace
             JIF(bs.compressRead(tmmrKbps,true));
             updateRttSample(Time::MS(hostTimeMS - nowNS.millisec()));
             peerTime_ = Time::MS(peerTimeMS);
-            tmmrKbps_ = tmmrKbps;
+            statistics_.bwKbps = tmmrKbps;
             bwe_.onReceived_R(bs.bitWrite, peerTime_, bitrate_R_->kbps(nowNS), nowNS);
             ackFeedback_.onAcks_R(acks, rttSum_>>8);
         }
@@ -112,7 +112,7 @@ class Receiver : public ReceiverIFace
             }
             else if (holeCount < (int)hasReceivedPackets_.size()) {//晚到的包
                 if (hasReceivedPackets_[holeCount])
-					hasReceivedPackets_[holeCount] = Time::MS(0);
+                    hasReceivedPackets_[holeCount] = Time::zero;
                 else {
                     statistics_.duplicateReceivedPackets++;
                     delete packet;
@@ -121,12 +121,12 @@ class Receiver : public ReceiverIFace
             }
             else {//提前到的包,设置中间未到包的等待过期时间
                 while (holeCount > (int)hasReceivedPackets_.size())
-					hasReceivedPackets_.push_back(nowNS + Time::MS(60));
+                    hasReceivedPackets_.push_back(nowNS + Time::MS(60));
                 hasReceivedPackets_.push_back(Time::MS(0));
             }
             //丢弃过期，还未到的包
             while (hasReceivedPackets_.size()
-                   && hasReceivedPackets_.front() < nowNS) {
+                && hasReceivedPackets_.front() < nowNS) {
                 hasReceivedPackets_.pop_front();
                 receivedPacketsBaseIndex_++;
             }
@@ -139,14 +139,17 @@ clean:
     virtual bool writeAcks_W(BitStream& bs, const Time& nowNS) override
     {
         const int bitsWrite = bs.bitWrite;
-        JIF(bs.write((uint16_t)ackRanges_.size()));
-        for(AckRangeList::const_iterator iter = ackRanges_.begin();
-            iter != ackRanges_.end(); ++iter) {
+        int ackSize = (int)ackRanges_.size();
+        if (ackSize > 0xFF) ackSize = 0xFF;
+        AckRangeList::iterator iter = ackRanges_.begin();
+        JIF(bs.write((uint8_t)ackSize));
+        while (iter != ackRanges_.end() && ackSize-- > 0) {
             const bool maxEqualToMin = (iter->first == iter->second);
             JIF(bs.write(maxEqualToMin));
             JIF(bs.write(iter->first));
             if (!maxEqualToMin)
                 JIF(bs.write(iter->second));
+            ++iter;
         }
         JIF(bs.write((uint32_t)peerTime_.millisec()));
         JIF(bs.write((uint32_t)nowNS.millisec()));
@@ -154,7 +157,7 @@ clean:
             const uint32_t tmmbr = (uint32_t)bwe_.tmmbrKbps_W(rttSum_>>8, nowNS);
             JIF(bs.compressWrite(tmmbr, true));
         }
-        ackRanges_.clear();
+        ackRanges_.erase(ackRanges_.begin(), iter);
         statistics_.ackTotalBitsSent += bs.bitWrite - bitsWrite;
         return true;
 clean:
@@ -168,31 +171,23 @@ clean:
         handlePackets(nowNS);
         discardExpiredSplitPacket(nowNS);
     }
-    virtual int tmmbrKbps_W(void) const
-    {
-        return tmmrKbps_;
-    }
-    virtual void stats(Statistics& stats) const
+    virtual void stats(Statistics& stats) const override
     {
         stats = statistics_;
     }
 private:
     void handleAcks(const Time& nowNS)
     {
-        uint32_t *pMessageNumber;
-        while ((pMessageNumber = ackQueue_.readLock())) {
-            uint32_t messageNumber = *pMessageNumber;
-            ackQueue_.readUnlock();
+        uint32_t messageNumber;
+        while (ackQueue_.pop(messageNumber)) {
             ackRanges_.insert(messageNumber);
         }
     }
     //分类数据报
     void handlePackets(const Time& nowNS)
     {
-        PacketPtr *ppacket;
-        while ((ppacket = receivedQueue_.readLock())) {
-            PacketPtr packet = *ppacket;
-            receivedQueue_.readUnlock();
+        PacketPtr packet;
+        while (receivedQueue_.pop(packet)) {
             statistics_.receivedPackets++;
             //TODO 调用插件处理
             if (packet->reliability & Packet::kSequence) {//有序包
@@ -267,7 +262,7 @@ private:
     void handleOrderPacket(PacketPtr packet)
     {
         const int orderingChannel = packet->orderingChannel;
-        uint32_t& readIndex = waitingForOrderedPacketReadIndex_[orderingChannel];
+        uint16_t& readIndex = waitingForOrderedPacketReadIndex_[orderingChannel];
         if (packet->orderingIndex < readIndex) {//晚到包
             statistics_.orderedOutOfOrder++;
             if (packet->controlFlags & Packet::kDelayable)
@@ -323,10 +318,12 @@ public:
         outputer_(outputer),
         bitrate_R_(BitrateIFace::create()),
         bwe_(bwe),
-        tmmrKbps_(kMaxBandwidthKbps),
         receivedPacketsBaseIndex_(0)
     {
         memset(&statistics_, 0, sizeof(statistics_));
+        memset(waitingForSequencedPacketReadIndex_, 0, sizeof(waitingForSequencedPacketReadIndex_));
+        memset(waitingForOrderedPacketReadIndex_, 0, sizeof(waitingForOrderedPacketReadIndex_));
+        statistics_.bwKbps= kStartBwKbps;
     }
 };
 }//namespace

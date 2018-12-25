@@ -139,7 +139,7 @@ static unsigned int __stdcall thread_routine (void *arg)
 }
 #endif
 }//namespace
-
+#if __cplusplus < 201103L
 void Mutex::lock() const
 {
 #if defined HAVE_PTHREAD
@@ -164,7 +164,9 @@ Mutex::~Mutex()
 {
     mutex_impl_delete(impl_);
 }
-void RWMutex::writeLock() const
+#endif
+#if __cplusplus < 201402L
+void RWMutex::lock() const
 {
 #if defined HAVE_PTHREAD
     int status = pthread_rwlock_wrlock (rwlock_get_impl (impl_));
@@ -174,7 +176,7 @@ void RWMutex::writeLock() const
     AcquireSRWLockExclusive(rwlock_get_impl(impl_));
 #endif
 }
-void RWMutex::writeUnlock() const
+void RWMutex::unlock() const
 {
 #if defined HAVE_PTHREAD
     int status = pthread_rwlock_unlock (rwlock_get_impl (impl_));
@@ -184,7 +186,7 @@ void RWMutex::writeUnlock() const
     ReleaseSRWLockExclusive(rwlock_get_impl(impl_));
 #endif
 }
-void RWMutex::readLock() const
+void RWMutex::lock_shared() const
 {
 #if defined HAVE_PTHREAD
     int status = pthread_rwlock_rdlock (rwlock_get_impl (impl_));
@@ -195,7 +197,7 @@ void RWMutex::readLock() const
 #endif
 
 }
-void RWMutex::readUnlock() const
+void RWMutex::unlock_shared() const
 {
 #if defined HAVE_PTHREAD
     int status = pthread_rwlock_unlock (rwlock_get_impl (impl_));
@@ -209,6 +211,7 @@ RWMutex::~RWMutex()
 {
     rwlock_impl_delete(impl_);
 }
+#endif
 Runnable::~Runnable()
 {
 	while (state_ != kTerminated)

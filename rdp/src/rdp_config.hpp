@@ -28,7 +28,7 @@
 namespace rdp {
 enum {
     kMaxMtuBytes = 1500,
-    kMaxBandwidthKbps = 1200,
+    kStartBwKbps = 1200,
 };
 /** 返回是否是大端序(高位在字节序前部) */
 inline bool bigEndian()

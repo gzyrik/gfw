@@ -56,22 +56,29 @@ bool Packet::writeToStream(BitStream& bs) const
     if (bs.bitWrite + bitSize() >= bs.bitSize)
         return false;
     const int bitsWrite = bs.bitWrite;//记录原写位置,用于恢复
-    const bool bSplited = (this->splitPacketCount || this->splitPacketIndex);
+    /*
+       0               1               2               3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |              messageNumber    |S| R |    F    | 
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       S = bSplited,  R = reliability,  F=controlFlags
+       */
+    const bool bSplited = (this->splitPacketCount > 0);
+    const uint8_t head = (this->controlFlags&0x1F)
+        | ((this->reliability&3)<<5)
+        | (bSplited ? 0x80 : 0);
+
     JIF(bs.write(this->messageNumber));
-    JIF(bs.write(&this->reliability, 2));
-    JIF(bs.write(bSplited));
+    JIF(bs.write(head));
     if (this->reliability & kSequence) {
-        if (this->reliability & kReliable)
-            JIF(bs.write(&this->controlFlags, 2));
         JIF(bs.write(this->orderingChannel));
         JIF(bs.compressWrite(this->orderingIndex,true));
     }
     if (bSplited) {
-        JIF(bs.write(this->splitPacketCount > 0));
         JIF(bs.compressWrite(this->splitPacketId, true));
         JIF(bs.compressWrite(this->splitPacketIndex, true));
-        if (this->splitPacketCount > 0)
-            JIF(bs.compressWrite(this->splitPacketCount, true));
+        JIF(bs.compressWrite(this->splitPacketCount, true));
     }
     JIF(bs.compressWrite(this->bitLength,true));
     JIF(bs.alignedWrite(this->payload, this->bitLength));
@@ -87,22 +94,28 @@ PacketPtr Packet::readFromStream(BitStream& bs)
     bool bSplited;
     memset(&tmp, 0, sizeof(Packet));
     const int bitRead = bs.bitRead;//记录原写位置,用于恢复
+    /*
+       0               1               2               3
+       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       |              messageNumber    |S| R |    F    | 
+       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+       S = bSplited,  R = reliability,  F=controlFlags
+       */
+    uint8_t head;
     JIF(bs.read(tmp.messageNumber));
-    JIF(bs.read(&tmp.reliability, 2));
-    JIF(bs.read(bSplited));
+    JIF(bs.read(head));
+    tmp.reliability = (head >> 5)&3;
+    tmp.controlFlags = (head & 0x1F);
+    bSplited = ((head &0x80) != 0);
     if (tmp.reliability & kSequence) {
-        if (tmp.reliability & kReliable)
-            JIF(bs.read(&tmp.controlFlags, 2));
         JIF(bs.read(tmp.orderingChannel));
         JIF(bs.compressRead(tmp.orderingIndex,true));
     }
     if (bSplited) {
-        bool splitPacketCount;
-        JIF(bs.read(splitPacketCount));
         JIF(bs.compressRead(tmp.splitPacketId, true));
         JIF(bs.compressRead(tmp.splitPacketIndex, true));
-        if (splitPacketCount)
-            JIF(bs.compressRead(tmp.splitPacketCount, true));
+        JIF(bs.compressRead(tmp.splitPacketCount, true));
     }
     JIF(bs.compressRead(tmp.bitLength,true));
     JIF(bs.alignedRead(buf, tmp.bitLength));

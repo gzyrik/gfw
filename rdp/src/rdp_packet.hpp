@@ -12,9 +12,9 @@ struct Packet
         kUnreliable     = 0, 
         // 保证次序, 但不重发, 晚到包会丢弃
         kSequence       = 1, 
-        // 没有次序, 会重发, 保证到达
+        // 没有次序, 会重发, 保证到达, 可能乱序
         kReliable       = 2,
-        // 保证次序, 会重发, 默认是保证到达,由OrderingFlag进行精细控制
+        // 保证次序, 会重发, 等价于普通TCP
         kOrderable      = kSequence | kReliable
     };
     /**
@@ -34,7 +34,7 @@ struct Packet
     uint8_t reliability;
     uint8_t controlFlags;
     uint8_t orderingChannel;
-    uint32_t orderingIndex;
+    uint16_t orderingIndex;
     uint16_t splitPacketId;
     uint16_t splitPacketIndex;
     uint16_t splitPacketCount;

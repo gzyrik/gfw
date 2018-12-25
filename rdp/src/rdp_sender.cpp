@@ -4,6 +4,7 @@
 #include "rdp_rwqueue.hpp"
 #include "rdp_bitrate.hpp"
 #include "rdp_shared.hpp"
+#include "rdp_thread.hpp"
 namespace rdp {
 namespace {
 
@@ -28,48 +29,52 @@ private:
     Time                betweenResendTime_;//重发间隔
 
     uint16_t messageNumber_;
-    uint32_t waitingForOrderedPacketWriteIndex_[0x100];
-    uint32_t waitingForSequencedPacketWriteIndex_[0x100];
-    uint32_t resetingForOrderedPacketWriteIndex_[0x100];
+
+    // kOrderable 序列计数
+    uint16_t waitingForOrderedPacketWriteIndex_[0x100];
+    volatile uint16_t resetingForOrderedPacketWriteIndex_[0x100];
+
+    //kSequence 序列计数
+    uint16_t waitingForSequencedPacketWriteIndex_[0x100];
 
     virtual void stats(Statistics& stats) const
     {
         stats = statistics_;
     }
+    void markResend_W(AckRangeList& acks)
+    {
+        PacketDeQueue::const_iterator piter = resendQueue_.begin(); 
+        for(AckRangeList::iterator iter = acks.begin();
+            iter != acks.end() && piter != resendQueue_.end(); ++iter) {
+            //移到范围
+            while(piter != resendQueue_.end()
+                && (*piter)->messageNumber < iter->first)
+                ++piter;
+            //标记已确认的包
+            while(piter != resendQueue_.end()
+                && (*piter)->messageNumber <= iter->second) {
+                (*piter)->timeStamp = Time::zero;
+                ++piter;
+            }
+        } 
+    }
     //SenderIFace
     virtual void writePackets_W(BitStream& bs, const Time& nowNS)
     {
-        {//标记已确认的包
-            AckRangeList *pAcks;
-            while ((pAcks = ackRangeQueue_.readLock())) {
-                AckRangeList acks;
-                acks.swap(*pAcks);
-                ackRangeQueue_.readUnlock();
-                PacketDeQueue::const_iterator piter = resendQueue_.begin(); 
-                for(AckRangeList::iterator iter = acks.begin();
-                    iter != acks.end() && piter != resendQueue_.end(); ++iter) {
-                    //移到范围
-                    while(piter != resendQueue_.end()
-                          && (*piter)->messageNumber < iter->first)
-                        ++piter;
-                    //标记已确认的包
-                    while(piter != resendQueue_.end()
-                          && (*piter)->messageNumber <= iter->second) {
-                        (*piter)->timeStamp = Time::MS(0);
-                        ++piter;
-                    }
-                }
-            }
+        {
+            AckRangeList acks;
+            while (ackRangeQueue_.pop(acks))
+                markResend_W(acks); //ack 标记已确认包
         }
         {//按时间次序,重发过期包,时间0表示不再重发
             while (resendQueue_.size() > 0) {
                 PacketPtr packet = resendQueue_.front();
                 if (packet->reliability & Packet::kSequence) {//小于该值都无须重发
-                    ///TODO resetingForOrderedPacketWriteIndex 需要同步
                     if (packet->orderingIndex < resetingForOrderedPacketWriteIndex_[packet->orderingChannel])
-                        packet->timeStamp  = Time::MS(0);
+                        packet->timeStamp  = Time::zero;
                 }
-                if (packet->timeStamp == 0) {
+
+                if (packet->timeStamp == Time::zero) {
                     resendQueue_.pop_front();
                     packet->release();
                 }
@@ -107,10 +112,9 @@ private:
 
                 if (packet->reliability & Packet::kReliable) {
                     packet->timeStamp = nowNS + betweenResendTime_;
-                    if (packet->reliability & Packet::kSequence) {//小于该值都无须重发
-                        ///TODO clearingForOrderedPacketWriteIndex 需要同步
+                    if (packet->reliability & Packet::kSequence) {
                         if (packet->orderingIndex < resetingForOrderedPacketWriteIndex_[packet->orderingChannel])
-                            packet->timeStamp  = Time::MS(0);
+                            packet->timeStamp  = Time::zero;
                     }
                     if (packet->timeStamp > nowNS)
                         resendQueue_.push_back(packet);
@@ -118,15 +122,8 @@ private:
             }
         }
     }
-    virtual void sendPacket_I(PacketPtr packet, const enum Priority priority, const Time& nowNS)
+    void markPacket_I(PacketPtr packet) 
     {
-        bitrate_I_->update(packet->bitLength, nowNS);
-        if (packet->splitPacketCount > 0){
-push:
-            ASSERT(packet->bitLength < bitMTU_);
-            sendPacketSet_[priority].push(packet);
-            return;
-        }
         if (packet->reliability & Packet::kSequence) {
             if (packet->reliability & Packet::kReliable){
                 packet->orderingIndex = waitingForOrderedPacketWriteIndex_[packet->orderingChannel] ++;
@@ -136,7 +133,15 @@ push:
             else
                 packet->orderingIndex = waitingForSequencedPacketWriteIndex_[packet->orderingChannel] ++;
         }
-        if(packet->bitSize() >= bitMTU_){
+    }
+    virtual void sendPacket_I(PacketPtr packet, const enum Priority priority, const Time& nowNS) override
+    {
+        bitrate_I_->update(packet->bitLength, nowNS);
+        markPacket_I(packet);
+        if (packet->bitSize() < bitMTU_) {
+            sendPacketSet_[priority].push(packet);
+        }
+        else {
             statistics_.splitPackets++;
             const uint16_t splitPacketId = splitPacketId_++;
             const int maxSendBitBlock = bitMTU_ - packet->headerBitSize(true);
@@ -150,29 +155,13 @@ push:
                 sendPacketSet_[priority].push(splitPacket);
             }
             packet->release();
-            return;
         }
-        goto push;
-    }
-    virtual void markSplitPacket_I(PacketPtr packet)
-    {
-        if (packet->reliability & Packet::kSequence) {
-            if (packet->reliability & Packet::kReliable){
-                packet->orderingIndex = waitingForOrderedPacketWriteIndex_[packet->orderingChannel] ++;
-                if (packet->controlFlags & (Packet::kResetable))
-                    resetingForOrderedPacketWriteIndex_[packet->orderingChannel] = packet->orderingIndex;
-            }
-            else
-                packet->orderingIndex = waitingForSequencedPacketWriteIndex_[packet->orderingChannel] ++;
-        }
-        packet->splitPacketId = splitPacketId_++;
     }
     //AckFeedbackIFace
-    virtual void onAcks_R(AckRangeList& ackRanges, const Time& rttAverage) override
+    void onAcks_R(AckRangeList& acks, const Time& rttAverage) override
     {
-        if (ackRanges.size()) {
-            AckRangeList *pAcks = ackRangeQueue_.writeLock();
-            pAcks->swap(ackRanges);
+        if (acks.size()) {
+            ackRangeQueue_.writeLock()->swap(acks);
             ackRangeQueue_.writeUnlock();
         }
         if (rttAverage > Time::MS(2500))
@@ -190,6 +179,9 @@ public:
         betweenResendTime_(Time::S(1))
     {
         memset(&statistics_, 0, sizeof(statistics_));
+        memset(waitingForOrderedPacketWriteIndex_, 0, sizeof(waitingForOrderedPacketWriteIndex_));
+        memset((void*)resetingForOrderedPacketWriteIndex_, 0, sizeof(resetingForOrderedPacketWriteIndex_));
+        memset(waitingForSequencedPacketWriteIndex_, 0, sizeof(waitingForSequencedPacketWriteIndex_));
     }
 };
 }//namespace

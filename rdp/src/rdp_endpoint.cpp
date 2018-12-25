@@ -21,26 +21,27 @@ EndPoint::~EndPoint()
 }
 void EndPoint::sendPacket(const PacketPtr packet, const Time& now, const int priority)
 {
+    if (state() == kJoining) return;
     sender_->sendPacket_I(packet, (SenderIFace::Priority)priority, now);
 }
-void EndPoint::fixBandwidth(const bool fixed, const int kbps)
+void EndPoint::fixBandwidth(const int minKbps, const int maxKbps)
 {
-    bwe_.fixedBw_ = fixed;
-    bwe_.fixedBwKbps_ = kbps;
+    bwe_.minBwKbps_ = minKbps;
+    bwe_.maxBwKbps_ = maxKbps;
 }
 void EndPoint::run()
-{
+{//W线程
     uint8_t buf[kMaxMtuBytes];
     Time lastNS = Time::now();
-    int tmmbrKbps=0;
-    while(state() == kRunning) {
+    ReceiverIFace::Statistics stats={0};
+    while(1) {
         //kbitMTU = bitMTU_/1000;
         //Hz = tmmbrKbps/kbitMTU;
         //Ms = 1000/Hz = bitMTU_/tmmbrKbps;
-        if (tmmbrKbps <= 0)
+        if (stats.bwKbps <= 0)
             Time::sleep(Time::MS(1000));
-        else if (bitMTU_ >= tmmbrKbps)
-            Time::sleep(Time::MS(bitMTU_/tmmbrKbps));
+        else if (bitMTU_ >= stats.bwKbps)
+            Time::sleep(Time::MS(bitMTU_/stats.bwKbps));
         else
             Time::sleep(Time::MS(1));
 
@@ -48,16 +49,19 @@ void EndPoint::run()
         receiver_->update_W(now);
         memset(buf, 0, sizeof(buf));
         BitStream bs(buf, bitsof(buf));
-        tmmbrKbps = receiver_->tmmbrKbps_W();
+        receiver_->stats(stats);
 
         const Time deltaNS(now - lastNS);
-        int64_t bitLength = tmmbrKbps * deltaNS.millisec();
+        int64_t bitLength = stats.bwKbps * deltaNS.millisec();
         if (bitLength < bs.bitSize)
             bs.bitSize = (int)bitLength;
 
         receiver_->writeAcks_W(bs, now);
+        int bitWrite = bs.bitWrite;
         sender_->writePackets_W(bs, now);
         transport_.send_W(bs, now);
+        if (bitWrite == bs.bitWrite && state()==kJoining)
+            break;//等待清空发送才退出
         lastNS = now;
     }
 }

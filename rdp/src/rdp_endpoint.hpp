@@ -19,17 +19,18 @@ namespace rdp {
 class EndPoint final: public Thread,
     public transport::ReceiverIFace
 {
+    typedef rdp::ReceiverIFace ReceiverIFace;
 public:
     EndPoint(transport::SenderIFace& socket, OutputerIFace& output, const int mtu=0);
     ~EndPoint();
     //I线程, 发送数据
     void sendPacket(const PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
 
-    //设置固定接收码率
-    void fixBandwidth(const bool fixed, const int kbps);
+    //设置接收码率范围
+    void fixBandwidth(const int minKbps, const int maxKbps);
 
     void sendStats(SenderIFace::Statistics& stats) const { sender_->stats(stats); }
-    void recvStats(rdp::ReceiverIFace::Statistics& stats) const { receiver_->stats(stats); }
+    void recvStats(ReceiverIFace::Statistics& stats) const { receiver_->stats(stats); }//TODO
 public://transport::ReceiverIFace
     virtual void onReceived_R(BitStream& bs, const Time& now);
 private:
@@ -38,20 +39,23 @@ private:
     const int bitMTU_;
 private:
     SharedPtr<SenderIFace> sender_;
-    SharedPtr<rdp::ReceiverIFace> receiver_;
+    SharedPtr<ReceiverIFace> receiver_;
     transport::SenderIFace& transport_;
     struct BWECtrl final: public BWEIFace {
-        BWECtrl() : bwe_(BWEIFace::create()), fixedBw_(false){}
-        virtual ~BWECtrl() { delete bwe_; }
         BWEIFace* bwe_;
-        bool fixedBw_;
-        int  fixedBwKbps_;
+        int  minBwKbps_, maxBwKbps_;
+        BWECtrl() : bwe_(BWEIFace::create()), minBwKbps_(0), maxBwKbps_(0)
+        {}
+        virtual ~BWECtrl() { delete bwe_; }
         virtual void onReceived_R(const int bitLength, const Time& peerStampMS,
             const int recvKbps, const Time& now) override {
             bwe_->onReceived_R(bitLength, peerStampMS, recvKbps, now);
         }
         virtual int tmmbrKbps_W(const Time& rtt, const Time& now) override {
-            return fixedBw_ ? fixedBwKbps_ : bwe_->tmmbrKbps_W(rtt, now);
+            int kbps = bwe_->tmmbrKbps_W(rtt, now);
+            if (kbps < minBwKbps_) kbps = minBwKbps_ ;
+            if (maxBwKbps_ && kbps > maxBwKbps_) kbps = maxBwKbps_;
+            return kbps;
         }
     } bwe_;
 };

@@ -60,8 +60,6 @@ struct SenderIFace : public AckFeedbackIFace
     virtual void writePackets_W(BitStream& bs, const Time& nowNS) = 0;
     //I线程,发送数据报,用户层接口.
     virtual void sendPacket_I(PacketPtr packet, const enum Priority priority, const Time& nowNS) = 0;
-    //标志
-    virtual void markSplitPacket_I(PacketPtr packet) = 0;
 
     static SenderIFace* create(const int bitMTU);
 };

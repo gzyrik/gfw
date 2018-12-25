@@ -49,6 +49,16 @@ public:
         writeUnlock();
     }
 
+    /** ³ö¶Ó²Ù×÷ */
+    bool pop(T& val) 
+    {
+        T* p = readLock();
+        if (p) {
+            std::swap(*p, val);
+            readUnlock();
+        }
+        return p != nullptr;
+    }
 private:
     struct Node 
     {
