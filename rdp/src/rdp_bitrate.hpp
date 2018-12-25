@@ -17,9 +17,8 @@ struct BitrateIFace
     /** 返回当前码率,由于Time的误差至少1MS,允许kbps的误差 */
     virtual int kbps(const Time& nowNS) = 0;
 
-    virtual ~BitrateIFace(){}
-
     static BitrateIFace* create();
+    virtual ~BitrateIFace(){}
 };
 
 }

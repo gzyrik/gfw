@@ -57,11 +57,10 @@ class Disturber : public DisturberIFace, public Thread
         join();
     }
 public:
-    Disturber(SenderIFace* sender, ReceiverIFace* receiver)
-        : sender_(sender),receiver_(receiver),active_(true),packets_(100)
+    Disturber(SenderIFace* sender, ReceiverIFace* receiver, const Status& status)
+        : sender_(sender),receiver_(receiver), accumulatedJitterMS_(0),
+          active_(true),packets_(100), status_(status)
     {
-        accumulatedJitterMS_ = 0;
-        memset(&status_, 0, sizeof(status_));
         start();
     }
 };
@@ -163,13 +162,13 @@ void Disturber::run()
 }
 }//namespace
 
-ReceiverIFace* DisturberIFace::createReceiver(ReceiverIFace& receiver)
+ReceiverIFace* DisturberIFace::create(ReceiverIFace& receiver, const Status& status)
 {
-    return new Disturber(0, &receiver);
+    return new Disturber(nullptr, &receiver, status);
 }
-SenderIFace* DisturberIFace::createSender(SenderIFace& sender)
+SenderIFace* DisturberIFace::create(SenderIFace& sender, const Status& status)
 {
-    return new Disturber(&sender, 0);
+    return new Disturber(&sender, nullptr, status);
 }
 
 }//namespace transport

@@ -9,9 +9,10 @@ namespace transport {
  */
 struct ReceiverIFace
 {
-    virtual ~ReceiverIFace(){}
     //R线程, 读取网络数据流
     virtual void onReceived_R(BitStream& bs, const Time& now) = 0;
+
+    virtual ~ReceiverIFace(){}
 };
 /**
  * 外部传输发送接口
@@ -38,8 +39,8 @@ struct DisturberIFace : public ReceiverIFace, public SenderIFace
     };
     //重启干扰器
     virtual void restart(const Status& stat) = 0;
-    static ReceiverIFace* createReceiver(ReceiverIFace& receiver);
-    static SenderIFace* createSender(SenderIFace& sender);
+    static ReceiverIFace* create(ReceiverIFace& receiver, const Status& status);
+    static SenderIFace*   create(SenderIFace& sender, const Status& status);
 };
 }
 

@@ -13,6 +13,16 @@ TEST(Time, basic)
     EXPECT_EQ(n.millisec()/1000, n.sec());
 }
 
+TEST(Utils, seqDelta)
+{
+    const int maxSize = 512;
+    EXPECT_EQ(seqDelta(0, 0x10000-maxSize, maxSize), maxSize);
+    EXPECT_EQ(seqDelta(0x10000-maxSize, 0, maxSize), -maxSize);
+    EXPECT_EQ(seqDelta(0xffff, 0), -1);
+    EXPECT_EQ(seqDelta(0, 0xffff), 1);
+    EXPECT_EQ(seqDelta(0xff, 0xf), 0xff-0xf);
+}
+
 TEST(Time, now)
 {
     for(int i=0;i<100; ++i) {

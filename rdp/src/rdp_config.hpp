@@ -27,6 +27,7 @@
     rdp::log("W[%s:%d]"format, __FILE__, __LINE__, ##__VA_ARGS__)
 namespace rdp {
 enum {
+    kVersion = 0, //版本号,占2bit
     kMaxMtuBytes = 1500,
     kStartBwKbps = 1200,
 };
@@ -34,6 +35,25 @@ enum {
 inline bool bigEndian()
 {
     return *(uint16_t*)("\0\1") == (uint16_t)1;
+}
+/** 返回 seq1与seq0 的序列差 */
+inline int seqDelta(const uint16_t seq1,  const uint16_t seq0, const uint16_t maxSize=0xffff)
+{
+    if (seq1 == seq0)
+        return 0;
+    else if (seq0 > seq1) {
+        if (!(seq0 > 0xff00 && seq1 < 0xff) && seq0 - seq1 < 5 * maxSize) 
+            return - (seq0 - seq1); //没回滚且在合理范围内
+        return 0x10000 + seq1 - seq0;
+    } else {
+        if (seq1 > 0xff00 && seq0 < 0xff) {//可能回滚
+            if (seq0 < uint16_t(seq1 + maxSize))
+                return - (0x10000 + seq0 - seq1);//范围内的合法回滚
+        }
+        else if (seq1 >= seq0 + 5 * maxSize)//远超范围,认为已回滚
+            return - (0x10000 + seq0 - seq1);
+        return seq1 - seq0;
+    }
 }
 void log(const char* format, ...);
 }

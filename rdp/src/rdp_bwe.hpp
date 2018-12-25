@@ -10,10 +10,6 @@ namespace rdp{
  */
 struct BWEIFace
 {
-    static BWEIFace* create();
-
-    virtual ~BWEIFace(){}
-
     /**
      * 根据实际收到数据,更新估计值
      *
@@ -28,6 +24,9 @@ struct BWEIFace
      * 根据RTT和内部的估计趋势,估计下行带宽
      */
     virtual int tmmbrKbps_W(const Time& rtt, const Time& now) = 0;
+
+    static BWEIFace* create();
+    virtual ~BWEIFace(){}
 }; 
 }
 #endif

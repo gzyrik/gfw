@@ -165,7 +165,7 @@ bool BitStream::compressWrite(const void* in,  int bytesLength, const bool unsig
 {
     if (!in || bytesLength < 0)
         return false;
-    const int bitsWrite_ = this->bitWrite;//记录原写位置,用于恢复
+    const int bitWrite_ = this->bitWrite;//记录原写位置,用于恢复
     const int bytes_1 = bytesLength - 1;
     const uint8_t byteMatch = unsignedData ? 0 : 0xFF;
     const uint8_t halfMatch = unsignedData ? 0 : 0xF0;
@@ -199,7 +199,7 @@ bool BitStream::compressWrite(const void* in,  int bytesLength, const bool unsig
     }
     return true;
 clean:
-    this->bitWrite = bitsWrite_;
+    this->bitWrite = bitWrite_;
     return false;
 }
 bool BitStream::compressRead(void* out, int bytesLength, const bool unsignedData)

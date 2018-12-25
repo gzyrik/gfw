@@ -4,43 +4,43 @@
 #include "rdp_sender.hpp"
 #include "rdp_receiver.hpp"
 #include "rdp_thread.hpp"
+#include "rdp_fec.hpp"
 namespace rdp {
-/**
- * 处理流程 
- * - I线程, 调用发送接口 Sender::sendPacket_I, 放入发送队列 Sender::sendPacketSet
- * - R线程, 调用接收接口 Receiver::onReceived_R, 放入接收队列 Receiver::receivedQueue
- * -
- * - W线程, 内部线程
- *   #- 处理发送队列并写入网络 Sender::writeStream_W, Receiver::writeStream_W
- *   #- 处理接收队列并导出数据 Receiver::update_W, Receiver::Outputer::onPackets_W
- * -
- * - O线程, 从输出者中取出数据
- */
-class EndPoint final: public Thread,
-    public transport::ReceiverIFace
+class EndPoint final: public Thread, public transport::ReceiverIFace
 {
     typedef rdp::ReceiverIFace ReceiverIFace;
 public:
+
+    /** 构造数据端点
+     * @note  socket 和 output 工作在相同的独立线程中
+     *
+     * @param[in] socket 网络发送者
+     * @param[in] output 数据接收者
+     * @param[in] mtu    网络包的最大字节数
+     */
     EndPoint(transport::SenderIFace& socket, OutputerIFace& output, const int mtu=0);
     ~EndPoint();
-    //I线程, 发送数据
-    void sendPacket(const PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
+
+
+    /** 放入需发送的包,必须处于某个固定线程或同步处理 */
+    void sendPacket(PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
+
+    /** 接收网络数据, 必须处于某个固定线程或同步处理 */
+    virtual void onReceived_R(BitStream& bs, const Time& now) override;
 
     //设置接收码率范围
     void fixBandwidth(const int minKbps, const int maxKbps);
 
     void sendStats(SenderIFace::Statistics& stats) const { sender_->stats(stats); }
     void recvStats(ReceiverIFace::Statistics& stats) const { receiver_->stats(stats); }//TODO
-public://transport::ReceiverIFace
-    virtual void onReceived_R(BitStream& bs, const Time& now);
 private:
     //W线程
     virtual void run();
-    const int bitMTU_;
+    const int mtu_;
 private:
-    SharedPtr<SenderIFace> sender_;
-    SharedPtr<ReceiverIFace> receiver_;
-    transport::SenderIFace& transport_;
+    SenderIFace* sender_;
+    ReceiverIFace* receiver_;
+    FecIFace*  fec_;
     struct BWECtrl final: public BWEIFace {
         BWEIFace* bwe_;
         int  minBwKbps_, maxBwKbps_;

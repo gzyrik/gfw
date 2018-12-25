@@ -74,7 +74,7 @@ struct BitStream
      * @param[in] unsignedData 是否按无符号数压缩
      * @return 写入成功返回 true
      */
-    bool compressWrite(const void* in, const int bytesLength, const bool unsignedData);
+    bool compressWrite(const void* in, const int bytesLength, const bool unsignedData=true);
     /**
      * 读取压缩的位数据
      * @param[out] out 读取的位数据
@@ -82,7 +82,7 @@ struct BitStream
      * @param[in] unsignedData 是否按无符号数压缩
      * @return 写入成功返回 true
      */
-    bool compressRead(void* out, const int bytesLength, const bool unsignedData);
+    bool compressRead(void* out, const int bytesLength, const bool unsignedData=true);
 
     /**
      * 对齐到字节, 并写入连续的字节块.
@@ -121,14 +121,13 @@ struct BitStream
     /** 写入字符串*/
     bool write(const std::string& str)
     {
-        uint16_t len = str.size();
-        return compressWrite(&len, sizeof(len), true) && write(str.data(), len*8); 
+        return compressWrite((uint16_t)str.size()) && write(str.data(), str.size()*8); 
     }
     /** 读取字符串 */
     bool read(std::string& str)
     {
         uint16_t len;
-        if (!compressRead(&len, sizeof(len), true))
+        if (!compressRead(&len, sizeof(len)))
             return false;
         str.resize(len);
         return read((void*)str.data(), len*8, true);
@@ -162,12 +161,12 @@ struct BitStream
         return true;
     }
     /** 压缩写入对象 */
-    template<typename T> bool compressWrite(const T& obj, const bool unsignedData)
+    template<typename T> bool compressWrite(const T& obj, const bool unsignedData=true)
     {
         return compressWrite(reinterpret_cast<const void*>(&obj), sizeof(T), unsignedData);
     }
     /** 读取压缩的对象 */
-    template<typename T> bool compressRead(T& obj, const bool unsignedData)
+    template<typename T> bool compressRead(T& obj, const bool unsignedData=true)
     {
         return compressRead(reinterpret_cast<void*>(&obj), sizeof(T), unsignedData);
     }

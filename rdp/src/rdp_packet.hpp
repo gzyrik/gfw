@@ -4,37 +4,34 @@
 #include "rdp_time.hpp"
 #include <string>
 namespace rdp {
-struct Packet
+struct Packet final
 {
     enum Reliability
     {
-        // 没有次序, 也不重发, 等价于普通UDP
-        kUnreliable     = 0, 
-        // 保证次序, 但不重发, 晚到包会丢弃
-        kSequence       = 1, 
-        // 没有次序, 会重发, 保证到达, 可能乱序
+        // 没有次序, 也不主动重发, 等价于普通UDP
+        kUnreliable     = 0,
+
+        // 保证次序, 但不主动重发, 丢弃乱序的包
+        // orderingChannel 为次序通道
+        kSequence       = 1,
+
+        // 没有次序, 会主动重发(ACK 机制), 可能乱序
         kReliable       = 2,
-        // 保证次序, 会重发, 等价于普通TCP
-        kOrderable      = kSequence | kReliable
-    };
-    /**
-     * 针对kOrderable的特殊标记,
-     * 可进行精细的控制.
-     */
-    enum ControlFlag
-    {
-        // 类似于视频关键帧,刷新缓存,强制复位次序.
-        // 发送端将不重发该次序前的包.
-        kResetable      = 1,
-        // 强制复位次序后,允许该包晚到
-        kDelayable      = 2,
+
+        // 保证次序, 会主动重发(ACK 机制), 丢弃乱序的包
+        // orderingChannel 为次序通道
+        kRealtime       = kSequence | kReliable,
+
+        // 保证次序, 会主动重发(ACK 机制), 等价于普通TCP
+        // orderingChannel 为独立的排序通道
+        // 次序与排序是不同的通道
+        kOrderable      = kReliable | kSequence | 4 ,
     };
 
-    uint16_t messageNumber;
+    uint32_t messageNumber;
     uint8_t reliability;
-    uint8_t controlFlags;
     uint8_t orderingChannel;
-    uint16_t orderingIndex;
+    uint32_t orderingIndex;
     uint16_t splitPacketId;
     uint16_t splitPacketIndex;
     uint16_t splitPacketCount;
@@ -43,6 +40,11 @@ struct Packet
     Time   timeStamp;
 
     //转换为描述性的字符串
+    //格式
+    // "%X%c%x",     messageNumber,"USRO"[reliability], bitLength
+    // "(%x/%x)",    orderingIndex, orderingChannel,
+    // "[%x/%x|%x]", splitPacketIndex, splitPacketCount, splitPacketId,
+    // ": %s",       payload
     std::string toString() const;
 
     //释放
@@ -76,7 +78,7 @@ struct Packet
     static PacketPtr merge(PacketPtr packets[], int num);
     //
     static PacketPtr readFromStream(BitStream& bs);
-    static PacketPtr Reliable(const void* data, int bitLength);
+    static PacketPtr Create(enum Reliability reliability, const void* data, int bitLength, uint8_t orderingChannel=0);
 };
 }
 #endif

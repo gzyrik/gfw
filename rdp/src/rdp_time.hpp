@@ -136,13 +136,17 @@ public:
     {
         return Time(t1.value_/t2);
     }
+    friend Time operator* (const Time& t1, const int t2)
+    {
+        return Time(t1.value_*t2);
+    }
     friend Time operator- (const Time& t1)
     {
         return Time(-t1.value_);
     }
-    Time operator >> (int val)
+    friend Time operator >> (const Time& t1, int val)
     {
-        return Time(value_ >> val);
+        return Time(t1.value_ >> val);
     }
 };
 

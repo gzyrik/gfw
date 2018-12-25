@@ -5,7 +5,7 @@
 namespace rdp {
 
 /** ACK 范围数组 */
-typedef RangeList<uint16_t> AckRangeList;
+typedef RangeList<uint32_t> AckRangeList;
 
 /**
  * ACK反馈者
@@ -13,8 +13,8 @@ typedef RangeList<uint16_t> AckRangeList;
 struct AckFeedbackIFace
 {
     virtual ~AckFeedbackIFace(){}
-    //R线程,收到ACK, 主要用于清除重发包
-    virtual void onAcks_R(AckRangeList& acks, const Time& rttAverage) = 0;
+    //R线程,收到ACK, acks用于清除重发包, nacks用于强制重发包
+    virtual void onAcks_R(AckRangeList& acks, AckRangeList& nacks, const Time& rttAverage) = 0;
 };
 
 /**
@@ -45,8 +45,11 @@ struct SenderIFace : public AckFeedbackIFace
         int splitPackets;
         int unsplitPackets;
 
-        int resentPackets;
-        int bitResent;
+        int resentAckPackets;//ACK机制的重发的包数
+        int ackBitResent;//ACK机制重发的码流
+
+        int resentNackPackets;//NACK机制的重发包数;
+        int nackBitResent;//NACK机制重发的码流
 
         ///包的发送个数
         int sentPackets[kNumberOfPriority];
@@ -56,12 +59,15 @@ struct SenderIFace : public AckFeedbackIFace
     };
 
     virtual void stats(Statistics& stats) const = 0;
+
     //W线程,写入包(重发包优先),用于网络发送
     virtual void writePackets_W(BitStream& bs, const Time& nowNS) = 0;
+
     //I线程,发送数据报,用户层接口.
     virtual void sendPacket_I(PacketPtr packet, const enum Priority priority, const Time& nowNS) = 0;
 
-    static SenderIFace* create(const int bitMTU);
+    static SenderIFace* create(const int mtu);
+    virtual ~SenderIFace(){}
 };
 
 }

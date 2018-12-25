@@ -171,6 +171,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\rdp_fec.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\rdp_log.cpp"
 				>
 			</File>

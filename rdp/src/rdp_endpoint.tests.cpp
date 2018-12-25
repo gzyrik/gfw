@@ -16,15 +16,15 @@ struct EchoPacket : public OutputerIFace
             packet[i]->release();
         }
     }
-    virtual void onSplitPackets_W(PacketPtr packet[], const int num){ echo(packet, num); }
-    virtual void onOrderPackets_W(PacketPtr packet[], const int num, const bool ordered){ echo(packet, num);}
-    virtual void onPacket_W(PacketPtr packet, const bool sequence){echo(&packet, 1);}
+    virtual void onPackets_W(PacketPtr packet[], const int num){ echo(packet, num);}
+    virtual void onExpiredPackets_W(PacketPtr packet[], const int num){ echo(packet, num); }
+    virtual void onDisorderPacket_W(PacketPtr packet){ echo(&packet, 1);}
 };
 struct PipeLine : public transport::SenderIFace
 {
     transport::ReceiverIFace* peer_;
     virtual void send_W(BitStream& bs, const Time& now) override{
-        peer_->onReceived_R(bs, now);
+        if (rand() % 100 < 50) peer_->onReceived_R(bs, now);
     }
 };
 }
@@ -45,11 +45,12 @@ TEST(EndPoint, FixedBandWidth)
     P2.fixBandwidth(0, fixKbps);
     for(int i=0;i<100;++i) {
         now = Time::now();
-        P1.sendPacket(Packet::Reliable(buf, fixKbps*1000/100), now);
+        P1.sendPacket(Packet::Create(Packet::kUnreliable, buf, fixKbps*1000/100), now);
+        P2.sendPacket(Packet::Create(Packet::kUnreliable, buf, fixKbps*1000/100), now);
         Time::sleep(Time::MS(10));
     }
     SenderIFace::Statistics sendStats;
-    rdp::ReceiverIFace::Statistics recvStats;
+    ReceiverIFace::Statistics recvStats;
     Time::sleep(Time::MS(100));
     P1.join();
     P2.join();
