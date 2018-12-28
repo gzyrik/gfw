@@ -21,7 +21,6 @@ private:
     AckRangeRWQueue     ackRangeQueue_, nackRangeQueue_;
 private:
     PacketQueue         resendQueue_;//按时间的主动重发队列[ACK 机制]
-    PacketQueue         histroyQueue_;//收到请求而重发队列[NACK 机制]
 
     uint16_t            splitPacketId_;
     Statistics          statistics_;
@@ -56,74 +55,43 @@ private:
                 (*piter++)->timeStamp = Time::zero;
         } 
     }
-     void markResend_W(AckRangeList& acks)
-    {
-        PacketQueue::const_iterator piter = resendQueue_.begin(); 
-        for(AckRangeList::iterator iter = acks.begin();
-            iter != acks.end() && piter != resendQueue_.end(); ++iter) {
-            //移到范围
-            while(piter != resendQueue_.end()
-                && (*piter)->messageNumber < iter->first)
-                ++piter;
-            //标记已确认的包
-            while(piter != resendQueue_.end()
-                && (*piter)->messageNumber <= iter->second) {
-                (*piter)->timeStamp = Time::zero;
-                ++piter;
-            }
-        } 
-    }
-
     //SenderIFace
     virtual void writePackets_W(BitStream& bs, const Time& nowNS) override
     {
         AckRangeList acks;
 
-        //先根据 ACK, 清除重发包
-        while (ackRangeQueue_.pop(acks))
+        while (ackRangeQueue_.pop(acks)) //先根据 ACK, 清除重发包
             markResend_W(acks, resendQueue_);
-        {//按时间次序,重发过期包,时间0表示不再重发
-            while (resendQueue_.size() > 0) {
-                PacketPtr packet = resendQueue_.front();
-                if (packet->timeStamp == Time::zero) {
-                    resendQueue_.pop_front();
-                    packet->release();
-                }
-                else if(packet->timeStamp < nowNS) {
-                    //超过重发时间，且没有收到ack,所以重发
-                    if (!packet->writeToStream(bs))
-                        return;
-                    resendQueue_.pop_front();
-                    statistics_.resentAckPackets++;
-                    statistics_.ackBitResent += packet->bitLength;
-                    packet->timeStamp = nowNS + betweenResendTime_;
-                    resendQueue_.push_back(packet);
-                }
-                else
-                    break;
-            }
-        }
 
-        //根据 nack 标记请求包
-        acks.clear();
-        while (nackRangeQueue_.pop(acks))
-            markResend_W(acks, histroyQueue_);
-        {// 遍历清除过期包,并重发请求包,时间0表示要重发
-            PacketQueue::iterator iter = histroyQueue_.begin();
-            while (iter != histroyQueue_.end()) {
+        while (nackRangeQueue_.pop(acks)) //根据 nack 标记强制重发包
+            markResend_W(acks, resendQueue_);
+
+        {//重发包,时间0表示不再重发
+            PacketQueue::iterator iter = resendQueue_.begin();
+            while (iter != resendQueue_.end()) {
+                bool toErase, bResend;
                 PacketQueue::iterator cur = iter++;
                 PacketPtr packet = *cur;
-                if(packet->timeStamp == Time::zero) {
+                if (packet->reliability&Packet::kReliable) {
+                    toErase = packet->timeStamp == Time::zero;//ACK,需清除
+                    bResend = packet->timeStamp <= nowNS;//超时,需重发
+                }
+                else {
+                    toErase = packet->timeStamp <= nowNS; //超时,需清除
+                    bResend = packet->timeStamp == Time::zero;//NACK,需重发
+                }
+
+                if (toErase) {
+                    resendQueue_.erase(cur);
+                    packet->release();
+                }
+                else if(bResend) {
                     if (!packet->writeToStream(bs))
                         return;
-                    statistics_.resentNackPackets++;
-                    statistics_.nackBitResent += packet->bitLength;
                     packet->timeStamp = nowNS + betweenResendTime_;
+                    statistics_.resentPackets++;
+                    statistics_.bitResent += packet->bitLength;
                 }
-                else if (packet->timeStamp < nowNS)
-                    histroyQueue_.erase(cur);
-                else if (acks.empty())
-                    break;
             }
         }
 
@@ -143,11 +111,12 @@ private:
                 statistics_.sentPackets[i]++;
                 statistics_.bitSent[i] += packet->bitLength;
 
-                packet->timeStamp = nowNS + betweenResendTime_;
                 if (packet->reliability & Packet::kReliable)
-                    resendQueue_.push_back(packet);
-                else 
-                    histroyQueue_.push_back(packet);
+                    packet->timeStamp = nowNS + betweenResendTime_;
+                else
+                    packet->timeStamp = nowNS + betweenResendTime_ * 5;
+
+                resendQueue_.push_back(packet);
             }
         }
     }
@@ -202,9 +171,9 @@ private:
             betweenResendTime_ = rttAverage;
     }
 public:
-    Sender(const int mtu):
+    Sender(const int bitMTU) :
         bitrate_I_(BitrateIFace::create()),
-        bitMTU_(mtu*8),
+        bitMTU_(bitMTU),
         messageNumber_(0),
         betweenResendTime_(Time::S(1))
     {
@@ -219,8 +188,8 @@ public:
 };
 }//namespace
 
-SenderIFace* SenderIFace::create(const int mtu)
+SenderIFace* SenderIFace::create(const int bitMTU)
 {
-    return new Sender(mtu);
+    return new Sender(bitMTU);
 }
 }

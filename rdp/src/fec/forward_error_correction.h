@@ -1,8 +1,8 @@
 #ifndef _MODULES_RTP_RTCP_SOURCE_FORWARD_ERROR_CORRECTION_H_
 #define _MODULES_RTP_RTCP_SOURCE_FORWARD_ERROR_CORRECTION_H_
-#include "fec_config.h"
 #include <list>
 #include <vector>
+#include "fec_config.h"
 #include "scoped_ptr.h"
 #include "scoped_refptr.h"
 namespace fec {
@@ -152,7 +152,8 @@ public:
                         uint8_t protectionFactor,
                         int numImportantPackets,
                         bool useUnequalProtection,
-                        PacketList* fecPacketList);
+                        PacketList* fecPacketList,
+                        const uint16_t sequenceNumberBase);
 
     /**
      *  Decodes a list of media and FEC packets. It will parse the input received
@@ -200,7 +201,8 @@ private:
 
     void GenerateFecUlpHeaders(const PacketList& mediaPacketList,
                                uint8_t* packetMask,
-                               uint32_t numFecPackets);
+                               uint32_t numFecPackets,
+                               const uint16_t sequenceNumberBase);
 
     void GenerateFecBitStrings(const PacketList& mediaPacketList,
                                uint8_t* packetMask,
@@ -236,7 +238,7 @@ private:
                                RecoveredPacketList* recoveredPacketList);
 
     // Attempt to recover missing packets.
-    void AttemptRecover(RecoveredPacketList* recoveredPacketList);
+    int AttemptRecover(RecoveredPacketList* recoveredPacketList);
 
     // Initializes the packet recovery using the FEC packet.
     static  void InitRecovery(const FecPacket* fec_packet,
@@ -244,14 +246,14 @@ private:
 
     // Performs XOR between |src_packet| and |dst_packet| and stores the result
     // in |dst_packet|.
-    static void XorPackets(const Packet* src_packet,
+    static int XorPackets(const Packet* src_packet,
                            RecoveredPacket* dst_packet);
 
     // Finish up the recovery of a packet.
     static  void FinishRecovery(RecoveredPacket* recovered);
 
     // Recover a missing packet.
-    void RecoverPacket(const FecPacket* fecPacket,
+    int RecoverPacket(const FecPacket* fecPacket,
                        RecoveredPacket* recPacketToInsert);
 
     // Get the number of missing media packets which are covered by this

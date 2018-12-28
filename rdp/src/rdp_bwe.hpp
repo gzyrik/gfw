@@ -25,6 +25,8 @@ struct BWEIFace
      */
     virtual int tmmbrKbps_W(const Time& rtt, const Time& now) = 0;
 
+    virtual void fixKbps(const int minKbps, const int maxKbps) = 0;
+
     static BWEIFace* create();
     virtual ~BWEIFace(){}
 }; 

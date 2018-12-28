@@ -45,11 +45,8 @@ struct SenderIFace : public AckFeedbackIFace
         int splitPackets;
         int unsplitPackets;
 
-        int resentAckPackets;//ACK机制的重发的包数
-        int ackBitResent;//ACK机制重发的码流
-
-        int resentNackPackets;//NACK机制的重发包数;
-        int nackBitResent;//NACK机制重发的码流
+        int resentPackets;//重发的包数
+        int bitResent;//重发的payload码流
 
         ///包的发送个数
         int sentPackets[kNumberOfPriority];
@@ -66,7 +63,7 @@ struct SenderIFace : public AckFeedbackIFace
     //I线程,发送数据报,用户层接口.
     virtual void sendPacket_I(PacketPtr packet, const enum Priority priority, const Time& nowNS) = 0;
 
-    static SenderIFace* create(const int mtu);
+    static SenderIFace* create(const int bitMTU);
     virtual ~SenderIFace(){}
 };
 

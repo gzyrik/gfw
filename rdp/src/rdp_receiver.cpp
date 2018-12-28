@@ -108,18 +108,14 @@ clean:
     bool readAks_R(BitStream& bs, const Time& nowNS)
     {
         /*
-           +-+-+- ~ ~ +- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | V | ACKS | NACK |R|PeerMs |LocalMs  |Tmmbr|
-           +-+- ~ ~ +-+-+- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+
-           V=kVersion, R=HasReport
+           +- ~ ~ +- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+
+           | ACKS | NACK |R|PeerMs |LocalMs|Tmmbr|
+           +- ~ ~ +-+-+- ~ ~ +-+-+-+-+-+-+-+-+-+-+
+           R=HasReport
            */
         AckRangeList acks, nacks;
         bool hasReport;
 
-
-        uint8_t version = 0;
-        JIF(bs.read(&version, 2));
-        JIF(version == kVersion);
         JIF(readRanges(bs, acks));
         JIF(readRanges(bs, nacks));
         JIF(bs.read(hasReport));
@@ -142,15 +138,13 @@ clean:
     virtual bool writeAcks_W(BitStream& bs, const Time& nowNS) override
     {
         const int bitWrite = bs.bitWrite;
-        const uint8_t version = kVersion;
         const bool needReport = nowNS > reportNextTime_;
         /*
-           +-+-+- ~ ~ +- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+-+
-           | V | ACKS | NACK |R|PeerMs |LocalMs  |Tmmbr|
-           +-+- ~ ~ +-+-+- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+
-           V=kVersion, R=HasReport
+           +- ~ ~ +- ~ ~ +-+-+-+-+-+-+-+-+-+-+-+-+
+           | ACKS | NACK |R|PeerMs |LocalMs|Tmmbr|
+           +- ~ ~ +-+-+- ~ ~ +-+-+-+-+-+-+-+-+-+-+
+           R=HasReport
            */
-        JIF(bs.write(&version, 2));
         JIF(writeRanges(bs, ackRanges_, statistics_.ackBitSent));
         JIF(writeRanges(bs, nackRanges_,statistics_.nackBitSent));
         JIF(bs.write(needReport));

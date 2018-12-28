@@ -10,6 +10,7 @@ typedef unsigned __int64 uint64_t;
 typedef __int64 int64_t;
 #else
 #include <stdint.h>
+#define _snprintf snprintf 
 #endif
 
 namespace rdp {

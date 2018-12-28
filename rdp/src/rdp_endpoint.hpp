@@ -26,38 +26,31 @@ public:
     void sendPacket(PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
 
     /** 接收网络数据, 必须处于某个固定线程或同步处理 */
-    virtual void onReceived_R(BitStream& bs, const Time& now) override;
+    virtual void onReceived_R(BitStream& bs, const Time& now) override
+    { fec_.onReceived_R(bs, now); }
 
-    //设置接收码率范围
-    void fixBandwidth(const int minKbps, const int maxKbps);
+    //固定接收码率的范围
+    void fixBandwidth(const int minBwKbps, const int maxBwKbps)
+    { bwe_.fixKbps(minBwKbps, maxBwKbps); }
 
-    void sendStats(SenderIFace::Statistics& stats) const { sender_->stats(stats); }
-    void recvStats(ReceiverIFace::Statistics& stats) const { receiver_->stats(stats); }//TODO
+    //固定FEC比例的范围
+    void fixProtection(const uint8_t minFecRate, const uint8_t maxFecRate, const bool enableDecode = true)
+    { fec_.fixRate(minFecRate, maxFecRate, enableDecode); }
+
+    void sendStats(SenderIFace::Statistics& stats) const
+    { sender_.stats(stats); }
+
+    void recvStats(ReceiverIFace::Statistics& stats) const
+    { receiver_.stats(stats); }
+private:
+    const int mtu_;
+    BWEIFace& bwe_;
+    SenderIFace& sender_;
+    ReceiverIFace& receiver_;
+    FECIFace& fec_;
 private:
     //W线程
-    virtual void run();
-    const int mtu_;
-private:
-    SenderIFace* sender_;
-    ReceiverIFace* receiver_;
-    FecIFace*  fec_;
-    struct BWECtrl final: public BWEIFace {
-        BWEIFace* bwe_;
-        int  minBwKbps_, maxBwKbps_;
-        BWECtrl() : bwe_(BWEIFace::create()), minBwKbps_(0), maxBwKbps_(0)
-        {}
-        virtual ~BWECtrl() { delete bwe_; }
-        virtual void onReceived_R(const int bitLength, const Time& peerStampMS,
-            const int recvKbps, const Time& now) override {
-            bwe_->onReceived_R(bitLength, peerStampMS, recvKbps, now);
-        }
-        virtual int tmmbrKbps_W(const Time& rtt, const Time& now) override {
-            int kbps = bwe_->tmmbrKbps_W(rtt, now);
-            if (kbps < minBwKbps_) kbps = minBwKbps_ ;
-            if (maxBwKbps_ && kbps > maxBwKbps_) kbps = maxBwKbps_;
-            return kbps;
-        }
-    } bwe_;
+    virtual void run() override;
 };
 
 }

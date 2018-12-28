@@ -78,7 +78,8 @@ struct Packet final
     static PacketPtr merge(PacketPtr packets[], int num);
     //
     static PacketPtr readFromStream(BitStream& bs);
-    static PacketPtr Create(enum Reliability reliability, const void* data, int bitLength, uint8_t orderingChannel=0);
+    static PacketPtr create(const void* data, int bitLength,
+        enum Reliability reliability, uint8_t orderingChannel=0);
 };
 }
 #endif

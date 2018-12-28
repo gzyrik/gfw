@@ -22,9 +22,12 @@ struct EchoPacket : public OutputerIFace
 };
 struct PipeLine : public transport::SenderIFace
 {
-    transport::ReceiverIFace* peer_;
+    transport::ReceiverIFace* receriver_;
+    int lostRate_;
+    PipeLine(int lostRate):lostRate_(lostRate){}
     virtual void send_W(BitStream& bs, const Time& now) override{
-        if (rand() % 100 < 50) peer_->onReceived_R(bs, now);
+        if (rand()%100 >= lostRate_)
+            receriver_->onReceived_R(bs, now);
     }
 };
 }
@@ -32,10 +35,12 @@ struct PipeLine : public transport::SenderIFace
 TEST(EndPoint, FixedBandWidth)
 {
     EchoPacket echo;
-    PipeLine L1, L2;
+    PipeLine L1(50), L2(0); //P1发送丢包
     EndPoint P1(L1, echo), P2(L2, echo);
-    L1.peer_ = &P2;
-    L2.peer_ = &P1;
+    L1.receriver_ = &P2;
+    L2.receriver_ = &P1;
+
+    P1.fixProtection(0,0xFF,false);//P1关闭FEC接收解码
     P1.start();
     P2.start();
 
@@ -45,8 +50,7 @@ TEST(EndPoint, FixedBandWidth)
     P2.fixBandwidth(0, fixKbps);
     for(int i=0;i<100;++i) {
         now = Time::now();
-        P1.sendPacket(Packet::Create(Packet::kUnreliable, buf, fixKbps*1000/100), now);
-        P2.sendPacket(Packet::Create(Packet::kUnreliable, buf, fixKbps*1000/100), now);
+        P1.sendPacket(Packet::create(buf, fixKbps*1000/100, Packet::kUnreliable), now);
         Time::sleep(Time::MS(10));
     }
     SenderIFace::Statistics sendStats;

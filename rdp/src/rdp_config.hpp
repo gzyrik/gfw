@@ -27,7 +27,6 @@
     rdp::log("W[%s:%d]"format, __FILE__, __LINE__, ##__VA_ARGS__)
 namespace rdp {
 enum {
-    kVersion = 0, //版本号,占2bit
     kMaxMtuBytes = 1500,
     kStartBwKbps = 1200,
 };
@@ -35,6 +34,45 @@ enum {
 inline bool bigEndian()
 {
     return *(uint16_t*)("\0\1") == (uint16_t)1;
+}
+inline void wordToBuffer(uint8_t* dataBuffer, uint16_t value)
+{
+    if (bigEndian()){
+        uint16_t* ptr = reinterpret_cast<uint16_t*>(dataBuffer);
+        ptr[0] = value;
+    }
+    else {
+        dataBuffer[0] = static_cast<uint8_t>(value >> 8);
+        dataBuffer[1] = static_cast<uint8_t>(value);
+    }
+}
+inline uint16_t bufferToWord(const uint8_t* dataBuffer)
+{
+    if (bigEndian())
+        return *reinterpret_cast<const uint16_t*>(dataBuffer);
+    else
+        return ((uint16_t)dataBuffer[0] << 8) + dataBuffer[1];
+}
+inline void longToBuffer(uint8_t* dataBuffer, uint32_t value)
+{
+    if (bigEndian()) {
+        uint32_t* ptr = reinterpret_cast<uint32_t*>(dataBuffer);
+        ptr[0] = value;
+    }
+    else {
+        dataBuffer[0] = static_cast<uint8_t>(value >> 24);
+        dataBuffer[1] = static_cast<uint8_t>(value >> 16);
+        dataBuffer[2] = static_cast<uint8_t>(value >> 8);
+        dataBuffer[3] = static_cast<uint8_t>(value);
+    }
+}
+inline uint32_t bufferToLong(uint8_t* dataBuffer)
+{
+    if (bigEndian())
+        return *reinterpret_cast<const uint32_t*>(dataBuffer);
+    else
+        return (uint32_t(dataBuffer[0]) << 24) + (uint32_t(dataBuffer[1]) << 16)
+        + (uint32_t(dataBuffer[2]) << 8)  + dataBuffer[3];
 }
 /** 返回 seq1与seq0 的序列差 */
 inline int seqDelta(const uint16_t seq1,  const uint16_t seq0, const uint16_t maxSize=0xffff)

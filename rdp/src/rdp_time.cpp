@@ -6,7 +6,7 @@
 #pragma comment( lib,"winmm.lib" )
 inline static uint64_t timeMS()
 {
-    static const DWORD firstTimeGetTime = timeGetTime();
+    static const DWORD firstTimeGetTime = timeGetTime()-1;
     static volatile LONG lastTimeGetTime = 0;
     static volatile uint64_t numWrapTimeGetTime = 0;
     volatile LONG* lastTimeGetTimePtr = &lastTimeGetTime;

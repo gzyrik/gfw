@@ -128,7 +128,9 @@ PacketPtr Packet::merge(PacketPtr packets[], int num)
 {
     return 0;
 }
-PacketPtr Packet::Create(enum Reliability reliability, const void* data, int bitLength, uint8_t orderingChannel)
+PacketPtr Packet::create(const void* data, int bitLength, 
+                         enum Reliability reliability, 
+                         uint8_t orderingChannel)
 {
     Packet* p = new Packet;
     memset(p, 0, sizeof(Packet));

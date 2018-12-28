@@ -1,7 +1,7 @@
 #include "rdp_config.hpp"
 #include "rdp_bitstream.hpp"
 namespace rdp {
-bool BitStream::_flipEndian = false;
+bool BitStream::_flipEndian = !bigEndian();//net order
 void flipEndian(void* buf, const int size, int count)
 {
     uint8_t* p = (uint8_t*)buf;
