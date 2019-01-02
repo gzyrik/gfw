@@ -234,11 +234,16 @@ public:
         std::swap(ptr_, other.ptr_);
         count_.swap(other.count_);
     }
+    template<class U> static SharedPtr cast(SharedPtr<U> const & r)
+    {
+        return SharedPtr<T>(r, StaticCastTag());
+    }
+    template<class T> static SharedPtr<T> ever(T* p)
+    {
+        return SharedPtr<T>(p, NullDeleter<T>());
+    }
 };
-template<class T, class U> SharedPtr<T> static_ptrcast(SharedPtr<U> const & r)
-{
-    return SharedPtr<T>(r, StaticCastTag());
-}
+
 template<typename T>
 class WeakPtr
 {

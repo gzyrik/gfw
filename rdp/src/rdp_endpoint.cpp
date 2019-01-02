@@ -13,13 +13,12 @@ EndPoint::EndPoint(transport::SenderIFace& socket, OutputerIFace& output, const 
 {}
 EndPoint::~EndPoint()
 {
-    join();
     delete &fec_;
     delete &receiver_;
     delete &sender_;
     delete &bwe_;
 }
-void EndPoint::sendPacket(PacketPtr packet, const Time& now, const int priority)
+void EndPoint::postPacket(PacketPtr packet, const Time& now, const int priority)
 {
     if (state() == kJoining) return;
     sender_.sendPacket_I(packet, (SenderIFace::Priority)priority, now);
@@ -56,16 +55,15 @@ void EndPoint::run()
         receiver_.stats(stats);
 
         const Time deltaNS(now - lastNS);
-        int64_t bitLength = stats.bwKbps * deltaNS.millisec();
+        const int bitLength = int(stats.bwKbps * deltaNS.millisec());
         if (bitLength < bs.bitSize)
-            bs.bitSize = (int)bitLength;
+            bs.bitSize = bitLength;
 
-        fec_.markFec_W(bs, now);
+        fec_.markFec_W(bs, bitLength, now);
         receiver_.writeAcks_W(bs, now);
         sender_.writePackets_W(bs, now);
-        if (bs.bitWrite > 20) //理论最小包: SeqNo[16]+NoACK+NoNACK+NoRTT
-            fec_.send_W(bs, now);
-        else if(state()==kJoining)
+        fec_.send_W(bs, now);
+        if(bs.bitWrite <= 20 && state()==kJoining) //理论最小包: SeqNo[16]+NoACK+NoNACK+NoRTT
             break;//等待清空发送才退出
         lastNS = now;
     }

@@ -61,7 +61,7 @@ private:
 class Thread : public Runnable
 {
 public:
-    Thread():handle_(0){}
+    Thread():handle_(nullptr), runnable_(nullptr){}
 
     /** 开始线程运行,
      * 若runnable存在, 执行外部runnable, 否则执行自身
@@ -81,8 +81,6 @@ public:
      */ 
     void detach(void);
 
-    virtual void run(void){}
-public:
     /** 以分离线程运行 */
     static void run(const SharedPtr<Runnable>& runnable);
 
@@ -92,7 +90,9 @@ public:
      */
     static void _routine(Runnable* runnable);
 private:
+    virtual void run(void) override {}
     void* handle_;
+    SharedPtr<Runnable>* runnable_;
 };
 #if __cplusplus < 201103L
 ///可递归互斥量

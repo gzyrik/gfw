@@ -135,6 +135,12 @@ struct BitStream
     /** 写入对象 */
     template<typename T> bool write(const T& obj)
     {
+        if (sizeof(T) > 1 && BitStream::_flipEndian) {
+            uint8_t tmp[sizeof(T)];
+            memcpy(tmp, &obj, sizeof(tmp));
+            flipEndian(tmp, sizeof(T), 1);
+            return write(tmp, bitsof(T), true);
+        }
         return write(&obj, bitsof(T), true);
     }
     /** 读取对象 */

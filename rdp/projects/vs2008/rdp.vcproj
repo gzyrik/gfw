@@ -183,7 +183,19 @@
 				>
 			</File>
 			<File
+				RelativePath="..\..\src\rdp_rangelist.tests.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\..\src\rdp_receiver.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\rdp_ringbuffer.tests.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\..\src\rdp_rwqueue.tests.cpp"
 				>
 			</File>
 			<File

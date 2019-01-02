@@ -52,10 +52,17 @@ class Receiver : public ReceiverIFace
     BitrateIFace*       bitrate_R_;//接收码率
     BWEIFace&           bwe_;//下行码率估计,产生TMMBR
 
-    uint8_t             rttSampleIndex_;
-    Time                rttSamples_[0x100];//由ACK带回的RTT
-    Time                rttSum_;
-    Time                peerTime_;//收到对端时间
+    uint8_t             rttMsSampleIndex_;
+    uint32_t            rttMsSamples_[0x100];//由ACK带回的RTT
+    uint32_t            rttMsQ8_;
+    
+    uint8_t             jitterMsSampleIndex_;
+    uint32_t            jitterMsSamples_[0x100];
+    uint32_t            jitterMsQ8_;
+
+    Time                lastSampleTime_;
+    Time                lastPeerTime_;//收到对端时间
+
     Time                reportNextTime_;
 
     //写入所有Ack,并清除ackRanges
@@ -120,17 +127,15 @@ clean:
         JIF(readRanges(bs, nacks));
         JIF(bs.read(hasReport));
         if (hasReport) {
-            uint32_t hostTimeMS, peerTimeMS;
-            uint32_t tmmrKbps;
-            JIF(bs.read(hostTimeMS));//本地的回环时间
-            JIF(bs.read(peerTimeMS));//对端时间,用于对端RTT计
-            JIF(bs.compressRead(tmmrKbps));
-            updateRttSample(Time::MS(hostTimeMS - nowNS.millisec()));
-            peerTime_ = Time::MS(peerTimeMS);
-            statistics_.bwKbps = tmmrKbps;
-            bwe_.onReceived_R(bs.bitWrite, peerTime_, bitrate_R_->kbps(nowNS), nowNS);
+            uint32_t hostTimeMs, peerTimeMs;
+            uint32_t tmmbrKbps;
+            JIF(bs.read(hostTimeMs));//本地的回环时间
+            JIF(bs.read(peerTimeMs));//对端时间,用于对端RTT计
+            JIF(bs.compressRead(tmmbrKbps));
+            updateStatistics(Time::MS(hostTimeMs), Time::MS(peerTimeMs), tmmbrKbps, nowNS);
+            bwe_.onReceived_R(bs.bitWrite, lastPeerTime_, bitrate_R_->kbps(nowNS), nowNS);
         }
-        ackFeedback_.onAcks_R(acks, nacks, rttSum_>>8);
+        ackFeedback_.onAcks_R(acks, nacks, Time::MS(rttMsQ8_>>8));
         return true;
 clean:
         return false;
@@ -150,9 +155,9 @@ clean:
         JIF(bs.write(needReport));
         if (needReport) {
             reportNextTime_ = nowNS + Time::MS(200);
-            JIF(bs.write((uint32_t)peerTime_.millisec()));
+            JIF(bs.write((uint32_t)lastPeerTime_.millisec()));
             JIF(bs.write((uint32_t)nowNS.millisec()));
-            JIF(bs.compressWrite((uint32_t)bwe_.tmmbrKbps_W(rttSum_>>8, nowNS)));
+            JIF(bs.compressWrite((uint32_t)bwe_.tmmbrKbps_W(Time::MS(rttMsQ8_>>8), nowNS)));
         }
 
         statistics_.ackTotalBitSent += bs.bitWrite - bitWrite;
@@ -350,20 +355,37 @@ private:
         else
             statistics_.orderedOutOfOrder++;
     }
-    void updateRttSample(const Time& rttTime)
+    void updateStatistics(const Time& localTimeMs, const Time& peerTimeMs, uint32_t tmmrKbps, const Time& nowNs)
     {
-        if (rttSum_ == 0) {
+        uint32_t rttMs = uint32_t((nowNs - localTimeMs).millisec());
+        if (rttMsQ8_ == 0 && rttMsSampleIndex_ == 0) {
             for(int i=0; i<0x100; ++i) {
-                rttSamples_[i] = rttTime;
-                rttSum_ += rttTime;
+                rttMsSamples_[i] = rttMs;
+                rttMsQ8_ += rttMs;
             }
-            rttSampleIndex_ = 0;
         }
         else {
-            rttSum_ += rttTime;
-            rttSum_ -= rttSamples_[rttSampleIndex_];
-            rttSampleIndex_++;
+            rttMsQ8_ += rttMs - rttMsSamples_[rttMsSampleIndex_++];
         }
+
+        if (lastSampleTime_ != 0) {
+            uint32_t jitterDiff = abs(long(
+                (nowNs - lastSampleTime_ - (peerTimeMs - lastPeerTime_)).millisec()));
+            if (jitterMsQ8_ == 0 && jitterMsSampleIndex_ == 0) {
+                for(int i=0; i<0x100; ++i) {
+                    jitterMsSamples_[i] = jitterDiff;
+                    jitterMsQ8_ += jitterDiff;
+                }
+            }
+            else {
+                jitterMsQ8_ += jitterDiff - jitterMsSamples_[jitterMsSampleIndex_++];
+            }
+        }
+        lastPeerTime_ = peerTimeMs;
+        lastSampleTime_ = nowNs;
+        statistics_.bwKbps = tmmrKbps;
+        statistics_.jitterMs = (jitterMsQ8_>>8);
+        statistics_.rttMs = rttMsQ8_ >> 8;
     }
 public:
     Receiver(AckFeedbackIFace& ackFeedback,
@@ -373,7 +395,9 @@ public:
         outputer_(outputer),
         bitrate_R_(BitrateIFace::create()),
         bwe_(bwe),
-        receivedPacketsBaseIndex_(0)
+        receivedPacketsBaseIndex_(0),
+        rttMsSampleIndex_(0), rttMsQ8_(0), 
+         jitterMsSampleIndex_(0), jitterMsQ8_(0)
     {
         memset(&statistics_, 0, sizeof(statistics_));
         memset(waitingForSequencedPacketReadIndex_, 0, sizeof(waitingForSequencedPacketReadIndex_));

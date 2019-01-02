@@ -40,6 +40,8 @@ struct ReceiverIFace : public transport::ReceiverIFace
 
         //·¢ËÍ´ø¿í
         int bwKbps;
+        int jitterMs;
+        int rttMs;
     };
 
     virtual void stats(Statistics& stats) const = 0;

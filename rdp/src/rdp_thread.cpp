@@ -220,13 +220,12 @@ Runnable::~Runnable()
 void Thread::start(const SharedPtr<Runnable>& runnable)
 {
     join();
-    SharedPtr<Runnable> * arg;
     if (!runnable)
-        arg = new SharedPtr<Runnable>(this, NullDeleter<Runnable>());
+        runnable_ = new SharedPtr<Runnable>(SharedPtr<Runnable>::ever(this));
     else {
-        arg = new SharedPtr<Runnable>(runnable);
-        state_ = kRunning;
+        runnable_ = new SharedPtr<Runnable>(runnable);
         runnable->state_ = kWaiting;
+        state_ = kRunning;
     }
 #if defined HAVE_PTHREAD
     handle_ = malloc(sizeof(pthread_t));
@@ -236,9 +235,9 @@ void Thread::start(const SharedPtr<Runnable>& runnable)
     HANDLE *handle = (HANDLE*)malloc(sizeof(HANDLE));
     handle_ = handle;
 #if defined _WIN32_WCE
-    *handle = (HANDLE) CreateThread (NULL, 0, &thread_routine, arg, 0 , NULL);
+    *handle = (HANDLE) CreateThread (NULL, 0, &thread_routine, runnable_, 0 , NULL);
 #else
-    *handle = (HANDLE) _beginthreadex (NULL, 0, &thread_routine, arg, 0 , NULL);
+    *handle = (HANDLE) _beginthreadex (NULL, 0, &thread_routine, runnable_, 0 , NULL);
 #endif
     ASSERT (*handle != NULL); 
 #endif
@@ -247,7 +246,9 @@ void Thread::join(void)
 {
     if (!handle_)
         return;
-    state_ = kJoining;
+    Runnable* runnable = runnable_->get();
+    if (runnable != this) state_ = kJoining;
+    runnable->state_ = kJoining;
 #if defined HAVE_PTHREAD
     int rc = pthread_join (*(pthread_t*)handle_, NULL);
     ASSERT (rc == 0);
@@ -260,18 +261,22 @@ void Thread::join(void)
 #endif
     free(handle_);
     handle_ = 0;
-    state_ = kTerminated;
+    runnable_ = nullptr;
+    if (runnable != this) state_ = kTerminated;
 }
 void Thread::detach(void)
 {
     if (handle_)
         return;
+    ASSERT(runnable_->get() != this);
+
 #if defined HAVE_PTHREAD
     int rc = pthread_detach(*(pthread_t*)handle_);
     ASSERT(rc == 0);
 #endif
     free(handle_);
     handle_ = 0;
+    runnable_ = nullptr;
 }
 void Thread::_routine(Runnable* runnable)
 {

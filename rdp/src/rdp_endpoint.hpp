@@ -6,13 +6,13 @@
 #include "rdp_thread.hpp"
 #include "rdp_fec.hpp"
 namespace rdp {
-class EndPoint final: public Thread, public transport::ReceiverIFace
+class EndPoint final: public Runnable, public transport::ReceiverIFace
 {
     typedef rdp::ReceiverIFace ReceiverIFace;
 public:
 
-    /** 构造数据端点
-     * @note  socket 和 output 工作在相同的独立线程中
+    /** 构造通信端点
+     * @note  socket 和 output 将工作在相同的独立线程(_W)中
      *
      * @param[in] socket 网络发送者
      * @param[in] output 数据接收者
@@ -22,10 +22,14 @@ public:
     ~EndPoint();
 
 
-    /** 放入需发送的包,必须处于某个固定线程或同步处理 */
-    void sendPacket(PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
+    /** 放入需发送的包
+     * @note 注意非线程安全, 必须处于某个固定线程或同步处理
+     */
+    void postPacket(PacketPtr packet, const Time& now, const int priority = SenderIFace::kMedium);
 
-    /** 接收网络数据, 必须处于某个固定线程或同步处理 */
+    /** 接收到网络数据, 
+     * @note 注意非线程安全, 必须处于某个固定线程或同步处理
+     */
     virtual void onReceived_R(BitStream& bs, const Time& now) override
     { fec_.onReceived_R(bs, now); }
 

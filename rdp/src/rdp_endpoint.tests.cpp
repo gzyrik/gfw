@@ -41,8 +41,9 @@ TEST(EndPoint, FixedBandWidth)
     L2.receriver_ = &P1;
 
     P1.fixProtection(0,0xFF,false);//P1关闭FEC接收解码
-    P1.start();
-    P2.start();
+    Thread T1, T2;
+    T1.start(SharedPtr<Runnable>::ever(&P1));
+    T2.start(SharedPtr<Runnable>::ever(&P2));
 
     Time now;
     char buf[15000];
@@ -50,14 +51,14 @@ TEST(EndPoint, FixedBandWidth)
     P2.fixBandwidth(0, fixKbps);
     for(int i=0;i<100;++i) {
         now = Time::now();
-        P1.sendPacket(Packet::create(buf, fixKbps*1000/100, Packet::kUnreliable), now);
+        P1.postPacket(Packet::create(buf, fixKbps*1000/100, Packet::kUnreliable), now);
         Time::sleep(Time::MS(10));
     }
     SenderIFace::Statistics sendStats;
     ReceiverIFace::Statistics recvStats;
     Time::sleep(Time::MS(100));
-    P1.join();
-    P2.join();
+    T1.join();
+    T2.join();
     P1.sendStats(sendStats);
     P2.recvStats(recvStats);
 }
