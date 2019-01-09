@@ -36,17 +36,17 @@ class Receiver : public ReceiverIFace
     PacketList          orderingQueues_[0x100];
     SplitPacketFrameMap splitPacketFrames_;
     Statistics          statistics_;
-    std::deque<Time>    hasReceivedPackets_;
+    std::vector<Time>   expiredPacketTimes_;//[序号- receivedPacketsBaseIndex_] = 过期时刻
+    std::vector<Time>   nackPacketTimes_;//[序号- receivedPacketsBaseIndex_] = Nack 时刻
+
     OutputerIFace&      outputer_;
 
     AckFeedbackIFace&   ackFeedback_;         
 
     RWQueue<uint32_t>   ackQueue_;//接收ACK,由线程R->W->ackRanges_
     AckRangeList        ackRanges_;//组装ACK
-    RWQueue<AckRangeList> nackQueue_;//接收NACK,由线程R->W->nackRanges_
+    RWQueue<uint32_t>   nackQueue_;//接收NACK,由线程R->W->nackRanges_
     AckRangeList        nackRanges_;//组装NACK
-    Time                nackNextTime_;
-
 
     RWQueue<PacketPtr>  receivedQueue_;//接收包,由线程R->W
     BitrateIFace*       bitrate_R_;//接收码率
@@ -55,7 +55,7 @@ class Receiver : public ReceiverIFace
     uint8_t             rttMsSampleIndex_;
     uint32_t            rttMsSamples_[0x100];//由ACK带回的RTT
     uint32_t            rttMsQ8_;
-    
+
     uint8_t             jitterMsSampleIndex_;
     uint32_t            jitterMsSamples_[0x100];
     uint32_t            jitterMsQ8_;
@@ -178,46 +178,52 @@ clean:
 
             const size_t holeCount = packet->messageNumber - receivedPacketsBaseIndex_;
             if (holeCount == 0) {//恰好是要的包
-                if (hasReceivedPackets_.size())
-                    hasReceivedPackets_.pop_front();
-                receivedPacketsBaseIndex_++;
+                if (expiredPacketTimes_.empty())
+                    receivedPacketsBaseIndex_++;
+                else
+                    expiredPacketTimes_[0] = Time::zero;
             }
             else if (holeCount > 0x7fff) {//防止上缢出
                 statistics_.duplicateReceivedPackets++;
                 packet->release();
                 continue;
             }
-            else if (holeCount < (int)hasReceivedPackets_.size()) {//晚到的包
-                if (hasReceivedPackets_[holeCount])
-                    hasReceivedPackets_[holeCount] = Time::zero;
+            else if (holeCount < (int)expiredPacketTimes_.size()) {//晚到的包
+                if (expiredPacketTimes_[holeCount] != Time::zero)
+                    expiredPacketTimes_[holeCount] = Time::zero;
                 else {
                     statistics_.duplicateReceivedPackets++;
                     packet->release();
                     continue;
                 }
             }
-            else {//提前到的包,设置中间未到包的等待过期时间
-                while (holeCount > (int)hasReceivedPackets_.size())
-                    hasReceivedPackets_.push_back(nowNS + Time::MS(600));
-                hasReceivedPackets_.push_back(Time::zero);
-            }
-            //丢弃过期，还未到的包
-            while (hasReceivedPackets_.size()
-                && hasReceivedPackets_.front() < nowNS) {
-                hasReceivedPackets_.pop_front();
-                receivedPacketsBaseIndex_++;
+            else {//提前到的包,设置中间未到包的过期时刻
+                const Time expired(nowNS + Time::MS(kExpiredMs));
+                while (holeCount > (int)expiredPacketTimes_.size())
+                    expiredPacketTimes_.push_back(expired);
+                expiredPacketTimes_.push_back(Time::zero);
+                nackPacketTimes_.resize(expiredPacketTimes_.size(), Time::zero);
             }
             receivedQueue_.push(packet);
-            if (!hasReceivedPackets_.empty() && nowNS > nackNextTime_) {
-                nackNextTime_ = hasReceivedPackets_.front();
-                uint16_t seqno = receivedPacketsBaseIndex_;
-                AckRangeList nacks;
-                for (std::deque<Time>::iterator iter = hasReceivedPackets_.begin();
-                    iter != hasReceivedPackets_.end(); ++iter, ++seqno) {
-                    if (*iter != Time::zero) nacks.insert(seqno);
+            //丢弃过期包, 每个 RTT 周期发NACK
+            size_t expiredNum = 0;
+            const Time nackMs(nowNS + Time::MS(rttMsQ8_>>8));
+            const size_t size = expiredPacketTimes_.size();
+            for (size_t i=0; i< size;++i) {
+                if (expiredPacketTimes_[i] < nowNS){
+                    if (expiredNum == i) expiredNum = i + 1;
+                } else if (expiredPacketTimes_[i] > nackMs //避免即将过期包
+                    && nackPacketTimes_[i] < nowNS) {
+                    nackQueue_.push(receivedPacketsBaseIndex_ + i);
+                    nackPacketTimes_[i] = nackMs;
                 }
-                nackQueue_.writeLock()->swap(nacks);
-                nackQueue_.writeUnlock();
+            }
+            if (expiredNum > 0) {
+                receivedPacketsBaseIndex_ += expiredNum;
+                expiredPacketTimes_.erase(expiredPacketTimes_.begin(), 
+                    expiredPacketTimes_.begin() + expiredNum);
+                nackPacketTimes_.erase(nackPacketTimes_.begin(),
+                    nackPacketTimes_.begin() + expiredNum);
             }
         }
 clean:
@@ -240,7 +246,8 @@ private:
         uint32_t messageNumber;
         while (ackQueue_.pop(messageNumber))
             ackRanges_.insert(messageNumber);
-        nackQueue_.pop(nackRanges_);
+        while (nackQueue_.pop(messageNumber))
+            nackRanges_.insert(messageNumber);
     }
     //分类数据报
     void handlePackets(const Time& nowNS)
@@ -397,7 +404,7 @@ public:
         bwe_(bwe),
         receivedPacketsBaseIndex_(0),
         rttMsSampleIndex_(0), rttMsQ8_(0), 
-         jitterMsSampleIndex_(0), jitterMsQ8_(0)
+        jitterMsSampleIndex_(0), jitterMsQ8_(0)
     {
         memset(&statistics_, 0, sizeof(statistics_));
         memset(waitingForSequencedPacketReadIndex_, 0, sizeof(waitingForSequencedPacketReadIndex_));

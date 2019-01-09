@@ -41,6 +41,7 @@ TEST(EndPoint, FixedBandWidth)
     L2.receriver_ = &P1;
 
     P1.fixProtection(0,0xFF,false);//P1关闭FEC接收解码
+    P2.fixProtection(0,0,false);//P2关闭FEC接收解码
     Thread T1, T2;
     T1.start(SharedPtr<Runnable>::ever(&P1));
     T2.start(SharedPtr<Runnable>::ever(&P2));

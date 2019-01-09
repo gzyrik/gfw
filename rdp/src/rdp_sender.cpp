@@ -27,7 +27,7 @@ private:
     const int           bitMTU_;
     //I线程,只是接口层payload发送码率,不包括包头,重发,ACK,FEC等
     BitrateIFace        *bitrate_I_;
-    Time                betweenResendTime_;//重发间隔
+    Time                betweenResendTime_;//ACK重发间隔
 
     uint32_t messageNumber_;
 
@@ -40,6 +40,7 @@ private:
     {
         stats = statistics_;
     }
+    enum { kResendMark = 8 };
     void markResend_W(AckRangeList& acks, PacketQueue& queue)
     {
         PacketQueue::const_iterator piter = queue.begin(); 
@@ -52,7 +53,7 @@ private:
             //标记已确认的包
             while(piter != queue.end()
                 && (*piter)->messageNumber <= iter->second)
-                (*piter++)->timeStamp = Time::zero;
+                (*piter++)->reliability |= kResendMark;
         } 
     }
     //SenderIFace
@@ -66,19 +67,19 @@ private:
         while (nackRangeQueue_.pop(acks)) //根据 nack 标记强制重发包
             markResend_W(acks, resendQueue_);
 
-        {//重发包,时间0表示不再重发
+        {//重发包优先
             PacketQueue::iterator iter = resendQueue_.begin();
             while (iter != resendQueue_.end()) {
                 bool toErase, bResend;
                 PacketQueue::iterator cur = iter++;
                 PacketPtr packet = *cur;
-                if (packet->reliability&Packet::kReliable) {
-                    toErase = packet->timeStamp == Time::zero;//ACK,需清除
-                    bResend = packet->timeStamp <= nowNS;//超时,需重发
+                if (packet->reliability & Packet::kReliable) {
+                    toErase = (packet->reliability & kResendMark) != 0;//ACK,需清除
+                    bResend = (packet->timeStamp <= nowNS);//超时,需重发
                 }
                 else {
-                    toErase = packet->timeStamp <= nowNS; //超时,需清除
-                    bResend = packet->timeStamp == Time::zero;//NACK,需重发
+                    bResend = (packet->reliability & kResendMark) != 0;//NACK,需重发
+                    toErase = (packet->timeStamp <= nowNS); //超时,需清除
                 }
 
                 if (toErase) {
@@ -88,7 +89,9 @@ private:
                 else if(bResend) {
                     if (!packet->writeToStream(bs))
                         return;
-                    packet->timeStamp = nowNS + betweenResendTime_;
+                    packet->reliability &= ~kResendMark;
+                    if (packet->reliability & Packet::kReliable)
+                        packet->timeStamp = nowNS + betweenResendTime_;
                     statistics_.resentPackets++;
                     statistics_.bitResent += packet->bitLength;
                 }
@@ -114,7 +117,7 @@ private:
                 if (packet->reliability & Packet::kReliable)
                     packet->timeStamp = nowNS + betweenResendTime_;
                 else
-                    packet->timeStamp = nowNS + betweenResendTime_ * 5;
+                    packet->timeStamp = nowNS + Time::MS(kExpiredMs);
 
                 resendQueue_.push_back(packet);
             }
@@ -163,10 +166,10 @@ private:
             nackRangeQueue_.writeLock()->swap(nacks);
             nackRangeQueue_.writeUnlock();
         }
-        if (rttAverage > Time::MS(2500))
-            betweenResendTime_ = Time::MS(2500);
-        else if (rttAverage < Time::MS(500))
-            betweenResendTime_ = Time::MS(500);
+        if (rttAverage > Time::MS(kAckMinMs))
+            betweenResendTime_ = Time::MS(kAckMinMs);
+        else if (rttAverage < Time::MS(kAckMaxMs))
+            betweenResendTime_ = Time::MS(kAckMaxMs);
         else
             betweenResendTime_ = rttAverage;
     }

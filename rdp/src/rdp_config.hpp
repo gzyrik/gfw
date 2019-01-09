@@ -29,6 +29,9 @@ namespace rdp {
 enum {
     kMaxMtuBytes = 1500,
     kStartBwKbps = 1200,
+    kExpiredMs= 600, //包过期时间,kExpiredMs-RTT作为最大缓存时长
+    kAckMinMs = 100, //最小ACK重发间隔 = clamp(RTT, kAckMinMs, kAckMaxMs)
+    kAckMaxMs = 500,
 };
 /** 返回是否是大端序(高位在字节序前部) */
 inline bool bigEndian()
